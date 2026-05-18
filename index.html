@@ -393,7 +393,50 @@
   .toast.error { background: var(--red); }
   .toast.success { background: var(--moss); }
 
-  /* ── SETTINGS ── */
+  /* ── ONBOARDING ── */
+  #setup-screen { min-height:100vh; background:var(--forest); display:flex; align-items:center; justify-content:center; padding:20px; }
+  .onboard-wrap { background:var(--cream); border-radius:var(--radius-lg); padding:40px 44px; width:100%; max-width:500px; box-shadow:var(--shadow-lg); position:relative; }
+  .onboard-steps { display:flex; gap:6px; justify-content:center; margin-bottom:28px; }
+  .onboard-step { width:8px; height:8px; border-radius:50%; background:var(--border-strong); transition:background 0.2s; }
+  .onboard-step.active { background:var(--forest); width:24px; border-radius:4px; }
+  .onboard-slide { animation:fadeIn 0.25s ease; }
+  @keyframes fadeIn { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+  .onboard-icon { font-size:40px; margin-bottom:12px; }
+  .onboard-title { font-family:'DM Serif Display',serif; font-size:24px; color:var(--forest); margin-bottom:10px; }
+  .onboard-desc { font-size:14px; color:var(--text-muted); line-height:1.7; margin-bottom:22px; }
+  .onboard-feature-list { display:flex; flex-direction:column; gap:10px; margin-bottom:24px; }
+  .onboard-feature { display:flex; align-items:flex-start; gap:10px; font-size:14px; color:var(--text); line-height:1.5; }
+  .onboard-feature-icon { font-size:16px; flex-shrink:0; margin-top:1px; }
+  .onboard-skip { font-size:12px; color:var(--text-muted); text-align:center; margin-top:14px; cursor:pointer; text-decoration:underline; }
+  .onboard-skip:hover { color:var(--text); }
+  .onboard-demo-box { background:var(--cream-dark); border-radius:10px; padding:16px; margin-bottom:22px; text-align:center; }
+  .onboard-demo-notif { background:white; border-radius:8px; padding:12px 16px; border:1px solid var(--border); text-align:left; box-shadow:var(--shadow); }
+
+  /* ── TELEGRAM GUIDE ── */
+  .tg-guide { display:flex; flex-direction:column; gap:0; margin-bottom:20px; }
+  .tg-step { display:flex; gap:14px; padding:14px 0; border-bottom:1px solid var(--border); }
+  .tg-step:last-child { border-bottom:none; }
+  .tg-step-num { width:26px; height:26px; border-radius:50%; background:var(--forest); color:white; font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:center; flex-shrink:0; margin-top:2px; }
+  .tg-step-body { flex:1; }
+  .tg-step-title { font-size:14px; font-weight:500; color:var(--text); margin-bottom:4px; }
+  .tg-step-sub { font-size:12px; color:var(--text-muted); line-height:1.6; margin-bottom:8px; }
+  .tg-mockup-search { background:white; border-radius:8px; border:1px solid var(--border); overflow:hidden; }
+  .tg-mockup-bar { background:#f0f2f5; padding:8px 12px; font-size:12px; color:var(--text-muted); border-bottom:1px solid var(--border); }
+  .tg-mockup-result { display:flex; align-items:center; gap:10px; padding:10px 12px; }
+  .tg-mockup-avatar { width:32px; height:32px; border-radius:50%; background:rgba(37,161,218,0.15); display:flex; align-items:center; justify-content:center; font-size:16px; }
+  .tg-mockup-chat { display:flex; flex-direction:column; gap:8px; }
+  .tg-bubble { padding:8px 12px; border-radius:12px; font-size:12px; max-width:85%; line-height:1.5; }
+  .tg-bubble-out { background:var(--forest); color:white; align-self:flex-end; border-radius:12px 12px 2px 12px; }
+  .tg-bubble-in { background:#f0f2f5; color:var(--text); align-self:flex-start; border-radius:12px 12px 12px 2px; }
+  .guide-section { margin-bottom:18px; }
+  .guide-step-badge { display:inline-block; background:var(--forest); color:white; font-size:11px; font-weight:700; padding:3px 10px; border-radius:20px; margin-bottom:8px; letter-spacing:0.04em; }
+  .guide-code-box { background:var(--cream-dark); border-radius:8px; padding:10px 14px; font-family:monospace; font-size:15px; color:var(--forest); font-weight:600; margin-top:6px; letter-spacing:0.04em; }
+  .guide-example-box { margin-top:8px; }
+
+  /* ── SETUP SCREEN OLD (remove) ── */
+  .setup-card { display:none; }
+
+
   #settings-view { display: none; }
   .settings-card {
     background: white; border-radius: var(--radius-lg); border: 1px solid var(--border);
@@ -475,21 +518,172 @@
   </div>
 </div>
 
-<!-- ═══════════════ SETUP SCREEN ═══════════════ -->
+<!-- ═══════════════ SETUP SCREEN (ONBOARDING) ═══════════════ -->
 <div id="setup-screen" style="display:none;">
-  <div class="setup-card">
-    <h2>⚡ Kết nối Telegram</h2>
-    <p>Nhập Telegram Chat ID để nhận thông báo trực tiếp vào điện thoại khi có task mới, deadline sắp đến, hoặc trạng thái thay đổi.</p>
-    <div class="setup-form">
-      <input type="text" id="setup-tg-id" placeholder="Telegram Chat ID (VD: 123456789)">
-      <div class="setup-hint">
-        👉 Mở Telegram → Tìm bot <strong>@userinfobot</strong> → Gửi /start → Copy ID nhận được.<br><br>
-        🤖 Bot token mặc định dùng chung (bạn có thể đổi trong Cài đặt sau).
+  <div class="onboard-wrap">
+
+    <!-- Bước chỉ báo -->
+    <div class="onboard-steps">
+      <div class="onboard-step active" id="dot-0"></div>
+      <div class="onboard-step" id="dot-1"></div>
+      <div class="onboard-step" id="dot-2"></div>
+    </div>
+
+    <!-- ── SLIDE 0: Chào mừng ── -->
+    <div class="onboard-slide" id="slide-0">
+      <div class="onboard-icon">🎉</div>
+      <h2 class="onboard-title">Chào mừng đến TaskFlow!</h2>
+      <p class="onboard-desc">Quản lý công việc hàng ngày dễ dàng hơn. Mình sẽ hướng dẫn bạn cài đặt nhanh trong 1 phút.</p>
+      <div class="onboard-feature-list">
+        <div class="onboard-feature">
+          <span class="onboard-feature-icon">📋</span>
+          <span>Kanban board — kéo task qua các cột To Do, Đang làm, Xong</span>
+        </div>
+        <div class="onboard-feature">
+          <span class="onboard-feature-icon">📅</span>
+          <span>Lịch công việc — xem deadline theo tháng</span>
+        </div>
+        <div class="onboard-feature">
+          <span class="onboard-feature-icon">🔔</span>
+          <span>Nhắc nhở tự động qua trình duyệt, email &amp; Telegram</span>
+        </div>
       </div>
-      <input type="text" id="setup-bot-token" placeholder="Bot Token (tuỳ chọn — để trống dùng mặc định)">
-      <button class="btn-primary" onclick="saveSetup()">Bắt đầu sử dụng →</button>
-      <div class="setup-skip" onclick="skipSetup()">Bỏ qua, cài đặt sau</div>
+      <button class="btn-primary" onclick="goSlide(1)" style="margin-top:8px;">Bắt đầu →</button>
+      <div class="onboard-skip" onclick="skipSetup()">Bỏ qua, tự khám phá</div>
+    </div>
+
+    <!-- ── SLIDE 1: Browser push ── -->
+    <div class="onboard-slide" id="slide-1" style="display:none;">
+      <div class="onboard-icon">🔔</div>
+      <h2 class="onboard-title">Bật thông báo trình duyệt</h2>
+      <p class="onboard-desc">Khi có task mới hoặc deadline sắp đến, TaskFlow sẽ hiện popup ngay trên màn hình — kể cả khi bạn đang dùng app khác.</p>
+      <div class="onboard-demo-box">
+        <div class="onboard-demo-notif">
+          <div style="font-weight:600;font-size:13px;margin-bottom:3px;">📋 TaskFlow</div>
+          <div style="font-size:12px;color:var(--text-muted);">⏰ Deadline "Báo cáo tháng 5" còn 2 giờ nữa!</div>
+        </div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:8px;">↑ Trình duyệt sẽ hiện thông báo như thế này</div>
+      </div>
+      <button class="btn-primary" id="slide1-push-btn" onclick="slide1EnablePush()" style="margin-top:4px;">Cho phép thông báo</button>
+      <div class="onboard-skip" onclick="goSlide(2)">Bỏ qua bước này →</div>
+    </div>
+
+    <!-- ── SLIDE 2: Telegram ── -->
+    <div class="onboard-slide" id="slide-2" style="display:none;">
+      <div class="onboard-icon">✈️</div>
+      <h2 class="onboard-title">Kết nối Telegram <span style="font-size:14px;font-weight:400;color:var(--text-muted);">(tuỳ chọn)</span></h2>
+      <p class="onboard-desc">Nhận thông báo thẳng vào Telegram — tiện hơn khi không mở trình duyệt. Làm theo 3 bước sau:</p>
+
+      <!-- Hướng dẫn từng bước có hình minh hoạ -->
+      <div class="tg-guide">
+        <div class="tg-step">
+          <div class="tg-step-num">1</div>
+          <div class="tg-step-body">
+            <div class="tg-step-title">Mở Telegram, tìm <code>@userinfobot</code></div>
+            <div class="tg-step-sub">Gõ vào ô tìm kiếm của Telegram, chọn bot có tên <strong>userinfobot</strong></div>
+            <div class="tg-mockup-search">
+              <div class="tg-mockup-bar">🔍 &nbsp;userinfobot</div>
+              <div class="tg-mockup-result">
+                <div class="tg-mockup-avatar">🤖</div>
+                <div>
+                  <div style="font-size:13px;font-weight:600;">userinfobot</div>
+                  <div style="font-size:11px;color:var(--text-muted);">@userinfobot · Bot</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tg-step">
+          <div class="tg-step-num">2</div>
+          <div class="tg-step-body">
+            <div class="tg-step-title">Nhấn <strong>Start</strong> hoặc gõ <code>/start</code></div>
+            <div class="tg-step-sub">Bot sẽ trả lời ngay với thông tin của bạn</div>
+            <div class="tg-mockup-chat">
+              <div class="tg-bubble tg-bubble-out">/start</div>
+              <div class="tg-bubble tg-bubble-in">
+                <strong>Your Telegram info:</strong><br>
+                Id: <span style="color:#1a87b5;font-weight:700;">123456789</span><br>
+                First: Nguyen<br>
+                Username: @nguyenvan
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tg-step">
+          <div class="tg-step-num">3</div>
+          <div class="tg-step-body">
+            <div class="tg-step-title">Copy dãy số <strong>Id</strong> và dán vào đây</div>
+            <div class="tg-step-sub">Chỉ copy phần số, ví dụ: <code>123456789</code></div>
+            <input type="text" id="setup-tg-id" class="form-input" placeholder="Dán Chat ID vào đây..." style="margin-top:10px;font-size:14px;" oninput="validateTgId(this)">
+            <div id="tg-id-hint" style="font-size:12px;margin-top:6px;min-height:16px;"></div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:10px;margin-top:4px;flex-wrap:wrap;">
+        <button class="btn-primary" id="btn-finish-setup" onclick="saveSetup()">Xong, bắt đầu dùng →</button>
+        <button class="btn-cancel" onclick="openTgGuide()">📖 Xem hướng dẫn chi tiết</button>
+      </div>
+      <div class="onboard-skip" onclick="skipSetup()">Bỏ qua Telegram, cài sau trong Cài đặt</div>
       <div class="auth-msg" id="setup-msg"></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════════════ TELEGRAM GUIDE MODAL ═══════════════ -->
+<div class="modal-overlay" id="tg-guide-modal">
+  <div class="modal" style="max-width:560px;">
+    <div class="modal-header">
+      <div class="modal-title">✈️ Hướng dẫn lấy Telegram Chat ID</div>
+      <button class="modal-close" onclick="document.getElementById('tg-guide-modal').classList.remove('open')">✕</button>
+    </div>
+    <div style="font-size:14px;line-height:1.8;color:var(--text);">
+
+      <div class="guide-section">
+        <div class="guide-step-badge">Bước 1</div>
+        <p>Mở app <strong>Telegram</strong> trên điện thoại hoặc máy tính.</p>
+      </div>
+
+      <div class="guide-section">
+        <div class="guide-step-badge">Bước 2</div>
+        <p>Nhấn vào <strong>ô tìm kiếm</strong> (kính lúp 🔍) và gõ:</p>
+        <div class="guide-code-box">@userinfobot</div>
+        <p style="margin-top:8px;">Chọn kết quả đầu tiên có tên <strong>userinfobot</strong> với biểu tượng 🤖</p>
+      </div>
+
+      <div class="guide-section">
+        <div class="guide-step-badge">Bước 3</div>
+        <p>Nhấn nút <strong>Start</strong> màu xanh ở dưới cùng (hoặc gõ <code>/start</code> rồi gửi).</p>
+      </div>
+
+      <div class="guide-section">
+        <div class="guide-step-badge">Bước 4</div>
+        <p>Bot sẽ trả lời ngay. Tìm dòng chữ <strong>Id:</strong> và copy dãy số đó.</p>
+        <div class="guide-example-box">
+          <div style="font-size:13px;color:var(--text-muted);margin-bottom:6px;">Ví dụ tin nhắn bot trả lời:</div>
+          <div style="background:white;border-radius:8px;padding:12px;font-size:13px;border:1px solid var(--border);">
+            Your Telegram info:<br>
+            <strong>Id: <span style="color:#1a87b5;">987654321</span></strong> ← Copy dãy số này<br>
+            First: Tên bạn<br>
+            Username: @username
+          </div>
+        </div>
+      </div>
+
+      <div class="guide-section">
+        <div class="guide-step-badge">Bước 5</div>
+        <p>Quay lại TaskFlow → <strong>Cài đặt → Telegram</strong> → dán số vào ô Chat ID → Lưu.</p>
+      </div>
+
+      <div style="background:rgba(78,140,98,0.08);border-radius:10px;padding:14px;margin-top:8px;font-size:13px;color:var(--text-muted);">
+        💡 <strong>Lưu ý:</strong> Chat ID là dãy số, không phải username. Ví dụ đúng: <code>987654321</code>. Sai: <code>@username</code>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-save" onclick="document.getElementById('tg-guide-modal').classList.remove('open')">Đã hiểu rồi ✓</button>
     </div>
   </div>
 </div>
@@ -791,6 +985,7 @@ function showScreen(screen) {
   document.getElementById('auth-screen').style.display = screen === 'auth' ? 'flex' : 'none';
   document.getElementById('setup-screen').style.display = screen === 'setup' ? 'flex' : 'none';
   document.getElementById('app').style.display = screen === 'app' ? 'flex' : 'none';
+  if (screen === 'setup') goSlide(0);
 }
 
 async function showApp() {
@@ -842,13 +1037,64 @@ async function logout() {
   tasks = [];
 }
 
-// ── SETUP ─────────────────────────────────────────────
+// ── SETUP / ONBOARDING ────────────────────────────────
+function goSlide(n) {
+  [0,1,2].forEach(i => {
+    document.getElementById('slide-'+i).style.display = i===n ? 'block' : 'none';
+    const dot = document.getElementById('dot-'+i);
+    dot.classList.toggle('active', i<=n);
+  });
+}
+
+async function slide1EnablePush() {
+  const btn = document.getElementById('slide1-push-btn');
+  if (!('Notification' in window)) { goSlide(2); return; }
+  const perm = await Notification.requestPermission();
+  if (perm === 'granted') {
+    userSettings.notify_push = true;
+    btn.textContent = '✓ Đã bật thông báo!';
+    btn.style.background = 'var(--moss)';
+    setTimeout(() => goSlide(2), 900);
+  } else {
+    btn.textContent = 'Đã từ chối — tiếp tục →';
+    btn.onclick = () => goSlide(2);
+  }
+}
+
+function validateTgId(input) {
+  const val = input.value.trim();
+  const hint = document.getElementById('tg-id-hint');
+  if (!val) { hint.textContent = ''; return; }
+  if (/^\d{6,12}$/.test(val)) {
+    hint.innerHTML = '<span style="color:var(--moss)">✓ Trông đúng rồi!</span>';
+  } else if (val.startsWith('@')) {
+    hint.innerHTML = '<span style="color:var(--amber)">⚠️ Đây là username, cần dãy số — làm lại bước 2</span>';
+  } else if (!/^\d+$/.test(val)) {
+    hint.innerHTML = '<span style="color:var(--red)">Chat ID chỉ gồm chữ số, ví dụ: 123456789</span>';
+  } else {
+    hint.textContent = '';
+  }
+}
+
 async function saveSetup() {
-  const tgId = document.getElementById('setup-tg-id').value.trim();
-  const token = document.getElementById('setup-bot-token').value.trim();
-  userSettings = { ...userSettings, telegram_chat_id: tgId, bot_token: token, setup_done: true, notify_new: true, notify_status: true, notify_deadline: true };
+  const tgEl = document.getElementById('setup-tg-id');
+  const tgId = tgEl ? tgEl.value.trim() : '';
+  userSettings = {
+    ...userSettings,
+    telegram_chat_id: tgId,
+    notify_telegram: !!tgId,
+    notify_email: true,
+    notify_new: true,
+    notify_status: true,
+    notify_deadline: true,
+    setup_done: true,
+  };
+  if ('Notification' in window && Notification.permission === 'granted') {
+    userSettings.notify_push = true;
+  }
   await saveUserSettings();
   showApp();
+  if (tgId) showToast('✅ Đã kết nối Telegram!', 'success');
 }
 
 async function skipSetup() {
@@ -856,6 +1102,11 @@ async function skipSetup() {
   await saveUserSettings();
   showApp();
 }
+
+function openTgGuide() {
+  document.getElementById('tg-guide-modal').classList.add('open');
+}
+
 
 // ── SETTINGS ──────────────────────────────────────────
 async function loadUserSettings() {
