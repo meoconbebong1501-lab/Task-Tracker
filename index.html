@@ -2,7 +2,11 @@
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#1a2e22">
 <title>TaskFlow v1.2.0 — Quản lý công việc</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
@@ -509,13 +513,116 @@
 
   .hidden { display: none !important; }
 
-  @media (max-width: 768px) {
-    .kanban-board { grid-template-columns: 1fr; }
-    .stats-bar { grid-template-columns: repeat(2, 1fr); }
-    .form-row { grid-template-columns: 1fr; }
-    .content { padding: 16px; }
-    .topbar { padding: 0 16px; }
-    .auth-card, .setup-card { width: 90vw; padding: 32px 24px; }
+  /* ══════════════════════════════════════
+     RESPONSIVE — MOBILE FIRST
+  ══════════════════════════════════════ */
+
+  /* Tablet */
+  @media (max-width: 900px) {
+    .kanban-board { grid-template-columns: 1fr; gap: 12px; }
+    .stats-bar { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+    .settings-card { max-width: 100%; }
+  }
+
+  /* Mobile */
+  @media (max-width: 600px) {
+    /* Base */
+    body { font-size: 14px; }
+
+    /* Loading */
+    .loading-logo { font-size: 26px; }
+
+    /* Auth */
+    #auth-screen { padding: 16px; align-items: flex-start; padding-top: 60px; }
+    .auth-card { width: 100%; padding: 28px 20px; border-radius: 16px; }
+    .auth-logo { font-size: 24px; }
+
+    /* Onboarding */
+    .onboard-wrap { padding: 28px 20px; border-radius: 16px; }
+    .onboard-title { font-size: 20px; }
+    .onboard-icon { font-size: 32px; margin-bottom: 8px; }
+    .tg-guide { max-height: 45vh; overflow-y: auto; padding-right: 4px; }
+
+    /* Topbar */
+    .topbar { height: auto; padding: 10px 14px; flex-wrap: wrap; gap: 8px; }
+    .topbar-logo { font-size: 17px; }
+    .topbar-nav { gap: 0; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; width: 100%; order: 3; flex: 0 0 100%; margin: 0 -14px; padding: 0 14px; }
+    .topbar-nav::-webkit-scrollbar { display: none; }
+    .nav-btn { padding: 7px 12px; font-size: 12px; white-space: nowrap; }
+    .topbar-right { margin-left: auto; gap: 8px; }
+    #user-email-display { display: none; }
+    .btn-logout { padding: 4px 10px; font-size: 11px; }
+
+    /* Content */
+    .content { padding: 14px 14px 60px; }
+
+    /* Stats */
+    .stats-bar { grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 16px; }
+    .stat-card { padding: 12px 14px; }
+    .stat-value { font-size: 22px; }
+    .stat-label { font-size: 10px; }
+    .stat-sub { font-size: 11px; }
+
+    /* Toolbar */
+    .toolbar { flex-direction: column; align-items: stretch; gap: 8px; margin-bottom: 16px; }
+    .toolbar-title { font-size: 18px; }
+    .toolbar-right { margin-left: 0; display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+    .search-input { width: 100%; }
+    .filter-select { font-size: 12px; padding: 7px 10px; }
+    .btn-add { white-space: nowrap; padding: 8px 14px; font-size: 13px; }
+
+    /* Kanban */
+    .kanban-board { grid-template-columns: 1fr; gap: 10px; }
+    .kanban-col-header { padding: 12px 14px; }
+    .kanban-cards { padding: 10px; gap: 8px; }
+    .task-card { padding: 12px 14px; }
+    .task-card-title { font-size: 13px; }
+    .task-card-actions { opacity: 1; } /* Luôn hiện trên mobile */
+    .action-btn { width: 30px; height: 30px; font-size: 15px; }
+
+    /* List view */
+    .task-list-item { padding: 12px 14px; gap: 10px; flex-wrap: wrap; }
+    .task-list-meta { flex-wrap: wrap; gap: 6px; }
+
+    /* Calendar */
+    .cal-grid { gap: 1px; }
+    .cal-cell { min-height: 60px; padding: 4px; border-radius: 4px; }
+    .cal-date { font-size: 11px; }
+    .cal-task-dot { font-size: 9px; padding: 1px 4px; }
+    .cal-dow { font-size: 10px; padding: 6px 0; }
+    .cal-month-title { font-size: 17px; }
+
+    /* Modal */
+    .modal-overlay { align-items: flex-end; }
+    .modal {
+      width: 100%; max-width: 100%; border-radius: 20px 20px 0 0;
+      padding: 24px 20px; max-height: 92vh;
+    }
+    .modal-title { font-size: 18px; }
+    .form-row { grid-template-columns: 1fr; gap: 10px; }
+
+    /* Settings */
+    .settings-card { padding: 20px 16px; border-radius: 12px; }
+    .settings-card h3 { font-size: 16px; margin-bottom: 14px; }
+    .settings-row { padding: 10px 0; }
+    .settings-row-label { font-size: 13px; }
+    .notif-channel-row { gap: 10px; padding: 12px 0; }
+    .notif-channel-icon { width: 32px; height: 32px; font-size: 14px; }
+    .btn-channel { padding: 6px 12px; font-size: 11px; }
+
+    /* Toast */
+    .toast-container { bottom: 16px; right: 16px; left: 16px; }
+    .toast { max-width: 100%; text-align: center; }
+  }
+
+  /* Small phones (iPhone SE, Galaxy A) */
+  @media (max-width: 380px) {
+    .auth-card { padding: 24px 16px; }
+    .onboard-wrap { padding: 24px 16px; }
+    .stats-bar { grid-template-columns: repeat(2, 1fr); gap: 6px; }
+    .stat-value { font-size: 20px; }
+    .topbar-logo { font-size: 15px; }
+    .nav-btn { padding: 6px 10px; font-size: 11px; }
   }
 </style>
 </head>
