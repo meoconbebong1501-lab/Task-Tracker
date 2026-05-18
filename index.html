@@ -1205,7 +1205,7 @@ function openTgGuide() {
 // ── SETTINGS ──────────────────────────────────────────
 async function loadUserSettings() {
   try {
-    const { data } = await sb.from('user_settings').select('*').eq('user_id', currentUser.id).single();
+    const { data, error } = await sb.from('user_settings').select('*').eq('user_id', currentUser.id).maybeSingle();
     if (data) {
       userSettings = { ...userSettings, ...data };
       const tgId = data.telegram_chat_id || '';
@@ -1220,13 +1220,19 @@ async function loadUserSettings() {
       const panel = document.getElementById('telegram-setup-panel');
       if (panel) panel.style.display = (tgOn || tgId) ? 'block' : 'none';
     }
+    // Nếu chưa có row thì tạo mới
+    if (!data) {
+      await sb.from('user_settings').insert({ user_id: currentUser.id, setup_done: false });
+    }
     const email = currentUser.email || '';
     const emailInline = document.getElementById('settings-email-inline');
     if (emailInline) emailInline.textContent = email;
     const emailDisplay = document.getElementById('settings-email-display');
     if (emailDisplay) emailDisplay.textContent = email;
     updatePushButtonState();
-  } catch(e) {}
+  } catch(e) {
+    // Bỏ qua lỗi, dùng default settings
+  }
 }
 
 async function saveUserSettings() {
