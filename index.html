@@ -1,0 +1,1171 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TaskFlow — Quản lý công việc</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --forest: #1a2e22;
+    --forest-mid: #2d4a38;
+    --forest-light: #3d6b4f;
+    --moss: #4e8c62;
+    --sage: #8ab89a;
+    --cream: #f7f4ef;
+    --cream-dark: #ede9e2;
+    --amber: #d4843a;
+    --amber-light: #f0a855;
+    --red: #c0392b;
+    --red-light: #e74c3c;
+    --text: #1a2e22;
+    --text-muted: #5a7a66;
+    --border: rgba(26,46,34,0.12);
+    --border-strong: rgba(26,46,34,0.24);
+    --card-bg: #ffffff;
+    --bg: #f7f4ef;
+    --shadow: 0 2px 12px rgba(26,46,34,0.08);
+    --shadow-lg: 0 8px 32px rgba(26,46,34,0.14);
+    --radius: 10px;
+    --radius-lg: 16px;
+    --col-todo: #fff8f0;
+    --col-inprogress: #f0f6ff;
+    --col-done: #f0faf4;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    font-size: 15px;
+  }
+
+  /* ── AUTH SCREEN ── */
+  #auth-screen {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--forest);
+    position: relative;
+    overflow: hidden;
+  }
+  #auth-screen::before {
+    content: '';
+    position: absolute;
+    width: 600px; height: 600px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.03);
+    top: -200px; right: -150px;
+  }
+  #auth-screen::after {
+    content: '';
+    position: absolute;
+    width: 400px; height: 400px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.03);
+    bottom: -100px; left: -100px;
+  }
+  .auth-card {
+    background: var(--cream);
+    border-radius: var(--radius-lg);
+    padding: 48px 44px;
+    width: 400px;
+    position: relative;
+    z-index: 1;
+    box-shadow: var(--shadow-lg);
+  }
+  .auth-logo {
+    font-family: 'DM Serif Display', serif;
+    font-size: 28px;
+    color: var(--forest);
+    margin-bottom: 6px;
+  }
+  .auth-logo span { color: var(--amber); }
+  .auth-subtitle { font-size: 13px; color: var(--text-muted); margin-bottom: 32px; }
+  .auth-tabs { display: flex; gap: 0; margin-bottom: 24px; border: 1px solid var(--border-strong); border-radius: 8px; overflow: hidden; }
+  .auth-tab {
+    flex: 1; padding: 9px; text-align: center; font-size: 13px; font-weight: 500;
+    cursor: pointer; transition: all 0.2s; color: var(--text-muted); background: transparent; border: none;
+  }
+  .auth-tab.active { background: var(--forest); color: white; }
+  .auth-form { display: flex; flex-direction: column; gap: 14px; }
+  .auth-form input {
+    padding: 11px 14px; border: 1px solid var(--border-strong); border-radius: 8px;
+    font-size: 14px; font-family: 'DM Sans', sans-serif; background: white; color: var(--text);
+    outline: none; transition: border-color 0.2s;
+  }
+  .auth-form input:focus { border-color: var(--moss); }
+  .auth-form input::placeholder { color: #aab8b0; }
+  .btn-primary {
+    padding: 12px; background: var(--forest); color: white; border: none;
+    border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer;
+    font-family: 'DM Sans', sans-serif; transition: background 0.2s; letter-spacing: 0.01em;
+  }
+  .btn-primary:hover { background: var(--forest-mid); }
+  .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+  .auth-msg { font-size: 13px; color: var(--red); text-align: center; min-height: 18px; }
+  .auth-success { color: var(--moss); }
+
+  /* ── SETUP SCREEN ── */
+  #setup-screen {
+    min-height: 100vh; background: var(--forest); display: flex;
+    align-items: center; justify-content: center;
+  }
+  .setup-card {
+    background: var(--cream); border-radius: var(--radius-lg);
+    padding: 44px; width: 460px; box-shadow: var(--shadow-lg);
+  }
+  .setup-card h2 { font-family: 'DM Serif Display', serif; font-size: 22px; margin-bottom: 6px; }
+  .setup-card p { font-size: 13px; color: var(--text-muted); margin-bottom: 28px; line-height: 1.6; }
+  .setup-form { display: flex; flex-direction: column; gap: 14px; }
+  .setup-form input {
+    padding: 11px 14px; border: 1px solid var(--border-strong); border-radius: 8px;
+    font-size: 14px; font-family: 'DM Sans', sans-serif; background: white; color: var(--text); outline: none;
+  }
+  .setup-form input:focus { border-color: var(--moss); }
+  .setup-hint { font-size: 12px; color: var(--text-muted); line-height: 1.6; padding: 10px 12px; background: var(--cream-dark); border-radius: 6px; }
+  .setup-hint a { color: var(--forest); }
+  .setup-skip { font-size: 12px; color: var(--text-muted); text-align: center; cursor: pointer; text-decoration: underline; }
+
+  /* ── MAIN APP ── */
+  #app { display: none; flex-direction: column; min-height: 100vh; }
+
+  /* ── TOPBAR ── */
+  .topbar {
+    background: var(--forest); color: white; padding: 0 28px;
+    display: flex; align-items: center; gap: 20px; height: 56px;
+    position: sticky; top: 0; z-index: 100;
+  }
+  .topbar-logo { font-family: 'DM Serif Display', serif; font-size: 20px; }
+  .topbar-logo span { color: var(--amber-light); }
+  .topbar-nav { display: flex; gap: 2px; margin-left: 24px; }
+  .nav-btn {
+    padding: 6px 14px; border-radius: 6px; font-size: 13px; font-weight: 500;
+    cursor: pointer; border: none; background: transparent; color: rgba(255,255,255,0.65);
+    font-family: 'DM Sans', sans-serif; transition: all 0.18s;
+  }
+  .nav-btn:hover { background: rgba(255,255,255,0.08); color: white; }
+  .nav-btn.active { background: rgba(255,255,255,0.14); color: white; }
+  .topbar-right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+  .user-chip {
+    display: flex; align-items: center; gap: 8px; font-size: 13px;
+    color: rgba(255,255,255,0.75);
+  }
+  .user-avatar {
+    width: 30px; height: 30px; border-radius: 50%; background: var(--moss);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 600; color: white;
+  }
+  .btn-logout {
+    padding: 5px 12px; background: rgba(255,255,255,0.1); color: white;
+    border: 1px solid rgba(255,255,255,0.15); border-radius: 6px;
+    font-size: 12px; cursor: pointer; font-family: 'DM Sans', sans-serif;
+    transition: background 0.18s;
+  }
+  .btn-logout:hover { background: rgba(255,255,255,0.18); }
+
+  /* ── CONTENT ── */
+  .content { flex: 1; padding: 28px 28px 48px; }
+
+  /* ── TOOLBAR ── */
+  .toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; flex-wrap: wrap; }
+  .toolbar-title { font-family: 'DM Serif Display', serif; font-size: 22px; color: var(--forest); }
+  .toolbar-right { margin-left: auto; display: flex; gap: 10px; align-items: center; }
+  .btn-add {
+    display: flex; align-items: center; gap: 7px; padding: 9px 18px;
+    background: var(--forest); color: white; border: none; border-radius: 8px;
+    font-size: 13px; font-weight: 500; cursor: pointer; font-family: 'DM Sans', sans-serif;
+    transition: background 0.18s;
+  }
+  .btn-add:hover { background: var(--forest-mid); }
+  .filter-select {
+    padding: 8px 12px; border: 1px solid var(--border-strong); border-radius: 8px;
+    font-size: 13px; font-family: 'DM Sans', sans-serif; background: white;
+    color: var(--text); cursor: pointer; outline: none;
+  }
+  .search-input {
+    padding: 8px 14px; border: 1px solid var(--border-strong); border-radius: 8px;
+    font-size: 13px; font-family: 'DM Sans', sans-serif; background: white;
+    color: var(--text); outline: none; width: 200px;
+  }
+  .search-input:focus { border-color: var(--moss); }
+
+  /* ── KANBAN ── */
+  #kanban-view { display: none; }
+  .kanban-board { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; align-items: start; }
+  .kanban-col {
+    border-radius: var(--radius-lg); overflow: hidden;
+    border: 1px solid var(--border);
+  }
+  .kanban-col-header {
+    padding: 14px 18px; display: flex; align-items: center; gap: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .col-todo .kanban-col-header { background: var(--col-todo); }
+  .col-inprogress .kanban-col-header { background: var(--col-inprogress); }
+  .col-done .kanban-col-header { background: var(--col-done); }
+  .col-todo { background: var(--col-todo); }
+  .col-inprogress { background: var(--col-inprogress); }
+  .col-done { background: var(--col-done); }
+  .col-label { font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
+  .col-todo .col-label { color: var(--amber); }
+  .col-inprogress .col-label { color: #2563eb; }
+  .col-done .col-label { color: var(--moss); }
+  .col-count {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 20px; height: 20px; border-radius: 10px;
+    font-size: 11px; font-weight: 600; padding: 0 6px;
+  }
+  .col-todo .col-count { background: rgba(212,132,58,0.15); color: var(--amber); }
+  .col-inprogress .col-count { background: rgba(37,99,235,0.12); color: #2563eb; }
+  .col-done .col-count { background: rgba(78,140,98,0.15); color: var(--moss); }
+  .kanban-cards { padding: 14px; display: flex; flex-direction: column; gap: 10px; min-height: 80px; }
+  .kanban-empty { text-align: center; padding: 24px 0; color: var(--text-muted); font-size: 13px; }
+
+  /* ── TASK CARD ── */
+  .task-card {
+    background: white; border-radius: var(--radius); border: 1px solid var(--border);
+    padding: 14px 16px; cursor: pointer; transition: box-shadow 0.18s, transform 0.1s;
+    position: relative;
+  }
+  .task-card:hover { box-shadow: var(--shadow); transform: translateY(-1px); }
+  .task-card-title { font-size: 14px; font-weight: 500; color: var(--text); margin-bottom: 8px; line-height: 1.4; }
+  .task-card-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .priority-badge {
+    padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; letter-spacing: 0.04em;
+  }
+  .priority-high { background: rgba(192,57,43,0.1); color: var(--red); }
+  .priority-medium { background: rgba(212,132,58,0.12); color: var(--amber); }
+  .priority-low { background: rgba(78,140,98,0.12); color: var(--moss); }
+  .deadline-badge {
+    display: flex; align-items: center; gap: 4px;
+    font-size: 11px; color: var(--text-muted);
+  }
+  .deadline-badge.overdue { color: var(--red-light); }
+  .deadline-badge.soon { color: var(--amber); }
+  .task-card-actions {
+    position: absolute; top: 10px; right: 10px;
+    display: flex; gap: 4px; opacity: 0; transition: opacity 0.18s;
+  }
+  .task-card:hover .task-card-actions { opacity: 1; }
+  .action-btn {
+    width: 26px; height: 26px; border-radius: 6px; border: none;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; font-size: 14px; transition: background 0.15s;
+  }
+  .action-btn-edit { background: rgba(26,46,34,0.06); color: var(--text-muted); }
+  .action-btn-edit:hover { background: rgba(26,46,34,0.12); color: var(--text); }
+  .action-btn-del { background: rgba(192,57,43,0.06); color: var(--red); }
+  .action-btn-del:hover { background: rgba(192,57,43,0.14); }
+
+  /* ── CALENDAR VIEW ── */
+  #calendar-view { display: none; }
+  .calendar-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
+  .cal-nav { display: flex; align-items: center; gap: 14px; }
+  .cal-nav-btn {
+    width: 34px; height: 34px; border-radius: 8px; border: 1px solid var(--border-strong);
+    background: white; cursor: pointer; font-size: 16px; color: var(--text);
+    display: flex; align-items: center; justify-content: center; transition: background 0.15s;
+  }
+  .cal-nav-btn:hover { background: var(--cream-dark); }
+  .cal-month-title { font-family: 'DM Serif Display', serif; font-size: 20px; }
+  .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+  .cal-dow {
+    text-align: center; font-size: 11px; font-weight: 600; letter-spacing: 0.06em;
+    text-transform: uppercase; color: var(--text-muted); padding: 8px 0;
+  }
+  .cal-cell {
+    background: white; border-radius: 8px; min-height: 90px; padding: 8px;
+    border: 1px solid var(--border); position: relative; transition: border-color 0.15s;
+  }
+  .cal-cell:hover { border-color: var(--border-strong); }
+  .cal-cell.other-month { background: var(--bg); opacity: 0.5; }
+  .cal-cell.today { border-color: var(--moss); }
+  .cal-date {
+    font-size: 13px; font-weight: 500; color: var(--text-muted); margin-bottom: 4px;
+  }
+  .cal-cell.today .cal-date {
+    width: 22px; height: 22px; border-radius: 50%; background: var(--forest);
+    color: white; display: flex; align-items: center; justify-content: center; font-size: 12px;
+  }
+  .cal-task-dot {
+    font-size: 11px; padding: 2px 6px; border-radius: 4px; margin-bottom: 2px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    cursor: pointer; font-weight: 500; line-height: 1.4;
+  }
+  .cal-task-dot.todo { background: rgba(212,132,58,0.14); color: var(--amber); }
+  .cal-task-dot.inprogress { background: rgba(37,99,235,0.1); color: #2563eb; }
+  .cal-task-dot.done { background: rgba(78,140,98,0.12); color: var(--moss); }
+  .cal-more { font-size: 10px; color: var(--text-muted); margin-top: 2px; }
+
+  /* ── LIST VIEW ── */
+  #list-view { display: none; }
+  .task-list { display: flex; flex-direction: column; gap: 8px; }
+  .task-list-item {
+    background: white; border-radius: var(--radius); border: 1px solid var(--border);
+    padding: 14px 18px; display: flex; align-items: center; gap: 16px;
+    transition: box-shadow 0.15s; cursor: pointer;
+  }
+  .task-list-item:hover { box-shadow: var(--shadow); }
+  .task-list-status { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+  .status-todo { background: var(--amber); }
+  .status-inprogress { background: #2563eb; }
+  .status-done { background: var(--moss); }
+  .task-list-title { flex: 1; font-size: 14px; font-weight: 500; }
+  .task-list-title.done-text { text-decoration: line-through; color: var(--text-muted); }
+  .task-list-meta { display: flex; align-items: center; gap: 10px; }
+  .task-list-actions { display: flex; gap: 6px; margin-left: auto; }
+
+  /* ── MODAL ── */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(10,20,14,0.55); z-index: 1000;
+    align-items: center; justify-content: center;
+    backdrop-filter: blur(2px);
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: white; border-radius: var(--radius-lg); padding: 32px 36px;
+    width: 500px; max-width: 95vw; max-height: 90vh; overflow-y: auto;
+    box-shadow: var(--shadow-lg); position: relative;
+  }
+  .modal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+  .modal-title { font-family: 'DM Serif Display', serif; font-size: 22px; }
+  .modal-close {
+    width: 32px; height: 32px; border-radius: 8px; border: none;
+    background: var(--cream-dark); color: var(--text-muted); cursor: pointer;
+    font-size: 18px; display: flex; align-items: center; justify-content: center;
+    transition: background 0.15s;
+  }
+  .modal-close:hover { background: var(--border-strong); }
+  .form-group { margin-bottom: 18px; }
+  .form-label { font-size: 12px; font-weight: 600; color: var(--text-muted); letter-spacing: 0.04em; margin-bottom: 6px; display: block; }
+  .form-input {
+    width: 100%; padding: 10px 14px; border: 1px solid var(--border-strong);
+    border-radius: 8px; font-size: 14px; font-family: 'DM Sans', sans-serif;
+    color: var(--text); outline: none; transition: border-color 0.18s;
+  }
+  .form-input:focus { border-color: var(--moss); }
+  .form-textarea {
+    width: 100%; padding: 10px 14px; border: 1px solid var(--border-strong);
+    border-radius: 8px; font-size: 14px; font-family: 'DM Sans', sans-serif;
+    color: var(--text); outline: none; resize: vertical; min-height: 80px;
+    transition: border-color 0.18s;
+  }
+  .form-textarea:focus { border-color: var(--moss); }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .modal-footer { display: flex; gap: 10px; justify-content: flex-end; margin-top: 24px; }
+  .btn-cancel {
+    padding: 10px 20px; background: white; border: 1px solid var(--border-strong);
+    border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer;
+    font-family: 'DM Sans', sans-serif; color: var(--text-muted); transition: background 0.15s;
+  }
+  .btn-cancel:hover { background: var(--cream-dark); }
+  .btn-save {
+    padding: 10px 24px; background: var(--forest); color: white; border: none;
+    border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer;
+    font-family: 'DM Sans', sans-serif; transition: background 0.18s;
+  }
+  .btn-save:hover { background: var(--forest-mid); }
+
+  /* ── STATS BAR ── */
+  .stats-bar { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 24px; }
+  .stat-card {
+    background: white; border-radius: var(--radius); border: 1px solid var(--border);
+    padding: 16px 20px;
+  }
+  .stat-label { font-size: 11px; font-weight: 600; color: var(--text-muted); letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 6px; }
+  .stat-value { font-size: 28px; font-weight: 300; color: var(--forest); font-family: 'DM Serif Display', serif; }
+  .stat-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+  /* ── TOAST ── */
+  .toast-container { position: fixed; bottom: 28px; right: 28px; display: flex; flex-direction: column; gap: 10px; z-index: 9999; }
+  .toast {
+    background: var(--forest); color: white; padding: 12px 20px;
+    border-radius: 10px; font-size: 13px; font-weight: 500;
+    box-shadow: var(--shadow-lg); opacity: 0; transform: translateY(8px);
+    transition: all 0.3s; max-width: 300px; line-height: 1.4;
+  }
+  .toast.show { opacity: 1; transform: translateY(0); }
+  .toast.error { background: var(--red); }
+  .toast.success { background: var(--moss); }
+
+  /* ── SETTINGS ── */
+  #settings-view { display: none; }
+  .settings-card {
+    background: white; border-radius: var(--radius-lg); border: 1px solid var(--border);
+    padding: 28px 32px; max-width: 540px; margin-bottom: 18px;
+  }
+  .settings-card h3 { font-family: 'DM Serif Display', serif; font-size: 18px; margin-bottom: 18px; }
+  .settings-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--border); }
+  .settings-row:last-child { border-bottom: none; }
+  .settings-row-label { font-size: 14px; font-weight: 500; }
+  .settings-row-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+  .toggle {
+    width: 42px; height: 24px; background: var(--border-strong); border-radius: 12px;
+    position: relative; cursor: pointer; transition: background 0.2s; flex-shrink: 0;
+  }
+  .toggle.on { background: var(--moss); }
+  .toggle::after {
+    content: ''; position: absolute; width: 18px; height: 18px; border-radius: 50%;
+    background: white; top: 3px; left: 3px; transition: left 0.2s;
+  }
+  .toggle.on::after { left: 21px; }
+
+  /* ── TELEGRAM BADGE ── */
+  .tg-badge {
+    display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px;
+    background: rgba(37, 161, 218, 0.1); color: #1a87b5; border-radius: 6px;
+    font-size: 12px; font-weight: 500;
+  }
+
+  .hidden { display: none !important; }
+
+  @media (max-width: 768px) {
+    .kanban-board { grid-template-columns: 1fr; }
+    .stats-bar { grid-template-columns: repeat(2, 1fr); }
+    .form-row { grid-template-columns: 1fr; }
+    .content { padding: 16px; }
+    .topbar { padding: 0 16px; }
+    .auth-card, .setup-card { width: 90vw; padding: 32px 24px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════ AUTH SCREEN ═══════════════ -->
+<div id="auth-screen">
+  <div class="auth-card">
+    <div class="auth-logo">Task<span>Flow</span></div>
+    <div class="auth-subtitle">Quản lý công việc thông minh · Nhận thông báo Telegram</div>
+    <div class="auth-tabs">
+      <button class="auth-tab active" id="tab-login" onclick="switchTab('login')">Đăng nhập</button>
+      <button class="auth-tab" id="tab-register" onclick="switchTab('register')">Đăng ký</button>
+    </div>
+    <div class="auth-form">
+      <input type="email" id="auth-email" placeholder="Email của bạn" autocomplete="email">
+      <input type="password" id="auth-pass" placeholder="Mật khẩu" autocomplete="current-password" onkeydown="if(event.key==='Enter')doAuth()">
+      <input type="password" id="auth-pass2" placeholder="Xác nhận mật khẩu" class="hidden" onkeydown="if(event.key==='Enter')doAuth()">
+      <button class="btn-primary" id="auth-btn" onclick="doAuth()">Đăng nhập</button>
+      <div class="auth-msg" id="auth-msg"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ SETUP SCREEN ═══════════════ -->
+<div id="setup-screen" style="display:none;">
+  <div class="setup-card">
+    <h2>⚡ Kết nối Telegram</h2>
+    <p>Nhập Telegram Chat ID để nhận thông báo trực tiếp vào điện thoại khi có task mới, deadline sắp đến, hoặc trạng thái thay đổi.</p>
+    <div class="setup-form">
+      <input type="text" id="setup-tg-id" placeholder="Telegram Chat ID (VD: 123456789)">
+      <div class="setup-hint">
+        👉 Mở Telegram → Tìm bot <strong>@userinfobot</strong> → Gửi /start → Copy ID nhận được.<br><br>
+        🤖 Bot token mặc định dùng chung (bạn có thể đổi trong Cài đặt sau).
+      </div>
+      <input type="text" id="setup-bot-token" placeholder="Bot Token (tuỳ chọn — để trống dùng mặc định)">
+      <button class="btn-primary" onclick="saveSetup()">Bắt đầu sử dụng →</button>
+      <div class="setup-skip" onclick="skipSetup()">Bỏ qua, cài đặt sau</div>
+      <div class="auth-msg" id="setup-msg"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ MAIN APP ═══════════════ -->
+<div id="app">
+  <!-- Topbar -->
+  <div class="topbar">
+    <div class="topbar-logo">Task<span>Flow</span></div>
+    <div class="topbar-nav">
+      <button class="nav-btn active" id="nav-kanban" onclick="switchView('kanban')">Kanban</button>
+      <button class="nav-btn" id="nav-calendar" onclick="switchView('calendar')">Lịch</button>
+      <button class="nav-btn" id="nav-list" onclick="switchView('list')">Danh sách</button>
+      <button class="nav-btn" id="nav-settings" onclick="switchView('settings')">Cài đặt</button>
+    </div>
+    <div class="topbar-right">
+      <div class="user-chip">
+        <div class="user-avatar" id="user-avatar">?</div>
+        <span id="user-email-display"></span>
+      </div>
+      <button class="btn-logout" onclick="logout()">Đăng xuất</button>
+    </div>
+  </div>
+
+  <!-- Content -->
+  <div class="content">
+
+    <!-- Stats Bar -->
+    <div class="stats-bar" id="stats-bar">
+      <div class="stat-card">
+        <div class="stat-label">Tổng công việc</div>
+        <div class="stat-value" id="stat-total">0</div>
+        <div class="stat-sub">trong tháng này</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Đang làm</div>
+        <div class="stat-value" id="stat-inprogress">0</div>
+        <div class="stat-sub">in progress</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Hoàn thành</div>
+        <div class="stat-value" id="stat-done">0</div>
+        <div class="stat-sub">done ✓</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Quá hạn</div>
+        <div class="stat-value" id="stat-overdue" style="color:var(--red)">0</div>
+        <div class="stat-sub">cần xử lý</div>
+      </div>
+    </div>
+
+    <!-- Toolbar -->
+    <div class="toolbar">
+      <div class="toolbar-title" id="view-title">Kanban Board</div>
+      <div class="toolbar-right">
+        <input type="text" class="search-input" id="search-input" placeholder="🔍 Tìm kiếm..." oninput="renderCurrentView()">
+        <select class="filter-select" id="priority-filter" onchange="renderCurrentView()">
+          <option value="">Tất cả ưu tiên</option>
+          <option value="high">🔴 Cao</option>
+          <option value="medium">🟡 Trung bình</option>
+          <option value="low">🟢 Thấp</option>
+        </select>
+        <button class="btn-add" onclick="openTaskModal()">＋ Thêm task</button>
+      </div>
+    </div>
+
+    <!-- Kanban View -->
+    <div id="kanban-view">
+      <div class="kanban-board">
+        <div class="kanban-col col-todo">
+          <div class="kanban-col-header">
+            <span class="col-label">To Do</span>
+            <span class="col-count" id="count-todo">0</span>
+          </div>
+          <div class="kanban-cards" id="col-todo-cards"></div>
+        </div>
+        <div class="kanban-col col-inprogress">
+          <div class="kanban-col-header">
+            <span class="col-label">In Progress</span>
+            <span class="col-count" id="count-inprogress">0</span>
+          </div>
+          <div class="kanban-cards" id="col-inprogress-cards"></div>
+        </div>
+        <div class="kanban-col col-done">
+          <div class="kanban-col-header">
+            <span class="col-label">Done</span>
+            <span class="col-count" id="count-done">0</span>
+          </div>
+          <div class="kanban-cards" id="col-done-cards"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Calendar View -->
+    <div id="calendar-view">
+      <div class="calendar-header">
+        <div class="cal-nav">
+          <button class="cal-nav-btn" onclick="changeMonth(-1)">‹</button>
+          <div class="cal-month-title" id="cal-month-title"></div>
+          <button class="cal-nav-btn" onclick="changeMonth(1)">›</button>
+        </div>
+      </div>
+      <div class="cal-grid" id="cal-grid"></div>
+    </div>
+
+    <!-- List View -->
+    <div id="list-view">
+      <div class="task-list" id="task-list-container"></div>
+    </div>
+
+    <!-- Settings View -->
+    <div id="settings-view">
+      <div class="settings-card">
+        <h3>🔔 Thông báo Telegram</h3>
+        <div class="settings-row">
+          <div>
+            <div class="settings-row-label">Telegram Chat ID</div>
+            <div class="settings-row-sub">Nhận thông báo trực tiếp vào Telegram của bạn</div>
+          </div>
+          <input type="text" class="form-input" id="settings-tg-id" style="width:160px" placeholder="Chat ID">
+        </div>
+        <div class="settings-row">
+          <div>
+            <div class="settings-row-label">Bot Token</div>
+            <div class="settings-row-sub">Để trống để dùng bot mặc định</div>
+          </div>
+          <input type="text" class="form-input" id="settings-bot-token" style="width:200px" placeholder="Tuỳ chọn">
+        </div>
+        <div class="settings-row">
+          <div>
+            <div class="settings-row-label">Thông báo task mới</div>
+          </div>
+          <div class="toggle on" id="toggle-new" onclick="toggleSetting('notify_new')"></div>
+        </div>
+        <div class="settings-row">
+          <div>
+            <div class="settings-row-label">Thông báo chuyển trạng thái</div>
+          </div>
+          <div class="toggle on" id="toggle-status" onclick="toggleSetting('notify_status')"></div>
+        </div>
+        <div class="settings-row">
+          <div>
+            <div class="settings-row-label">Nhắc nhở deadline (hàng ngày)</div>
+            <div class="settings-row-sub">Gửi lúc 8:00 sáng mỗi ngày</div>
+          </div>
+          <div class="toggle on" id="toggle-deadline" onclick="toggleSetting('notify_deadline')"></div>
+        </div>
+        <div style="margin-top:18px; display:flex; gap:10px;">
+          <button class="btn-save" onclick="saveSettings()">Lưu cài đặt</button>
+          <button class="btn-cancel" onclick="testTelegram()">🧪 Test thông báo</button>
+        </div>
+      </div>
+
+      <div class="settings-card">
+        <h3>👤 Tài khoản</h3>
+        <div class="settings-row">
+          <div>
+            <div class="settings-row-label">Email</div>
+            <div class="settings-row-sub" id="settings-email-display"></div>
+          </div>
+        </div>
+        <div style="margin-top:18px;">
+          <button class="btn-cancel" onclick="logout()">Đăng xuất</button>
+        </div>
+      </div>
+
+      <div class="settings-card">
+        <h3>⚙️ Hướng dẫn Supabase</h3>
+        <div style="font-size:13px; color:var(--text-muted); line-height:1.8;">
+          <p>App này cần <strong>Supabase URL</strong> và <strong>Anon Key</strong> để hoạt động.</p>
+          <p style="margin-top:10px;">Nhớ cập nhật <code>SUPABASE_URL</code> và <code>SUPABASE_ANON_KEY</code> ở đầu file <code>index.html</code>.</p>
+          <p style="margin-top:10px;">Và chạy file <code>supabase-setup.sql</code> trong SQL Editor của Supabase Dashboard.</p>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════════════ TASK MODAL ═══════════════ -->
+<div class="modal-overlay" id="task-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="modal-title">Thêm task mới</div>
+      <button class="modal-close" onclick="closeTaskModal()">✕</button>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Tiêu đề *</label>
+      <input type="text" class="form-input" id="task-title" placeholder="Nhập tên task...">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Mô tả</label>
+      <textarea class="form-textarea" id="task-desc" placeholder="Chi tiết công việc..."></textarea>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Trạng thái</label>
+        <select class="form-input" id="task-status">
+          <option value="todo">📋 To Do</option>
+          <option value="inprogress">🔄 In Progress</option>
+          <option value="done">✅ Done</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Ưu tiên</label>
+        <select class="form-input" id="task-priority">
+          <option value="medium">🟡 Trung bình</option>
+          <option value="high">🔴 Cao</option>
+          <option value="low">🟢 Thấp</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Deadline</label>
+      <input type="datetime-local" class="form-input" id="task-deadline">
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeTaskModal()">Huỷ</button>
+      <button class="btn-save" id="modal-save-btn" onclick="saveTask()">Lưu task</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast container -->
+<div class="toast-container" id="toast-container"></div>
+
+<script>
+// ════════════════════════════════════════════════════════
+//  ⚠️  CẤU HÌNH — Thay đổi 2 giá trị này trước khi dùng
+// ════════════════════════════════════════════════════════
+const SUPABASE_URL = 'https://aonajkvhxyaacpkpuhku.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFvbmFqa3ZoeHlhYWNwa3B1aGt1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkwNjc3NzgsImV4cCI6MjA5NDY0Mzc3OH0.FRhQs_2yik48FKvUyaKAZo5_DIjbIvUDLACbR539RZM';
+
+// Bot Telegram mặc định (có thể để trống nếu mỗi user tự nhập token)
+const DEFAULT_BOT_TOKEN = '';
+// ════════════════════════════════════════════════════════
+
+const { createClient } = supabase;
+let sb, currentUser, tasks = [], userSettings = {
+  telegram_chat_id: '',
+  bot_token: '',
+  notify_new: true,
+  notify_status: true,
+  notify_deadline: true,
+};
+let editingTaskId = null, currentView = 'kanban', calendarDate = new Date();
+
+// ── INIT ──────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  try {
+    sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    sb.auth.onAuthStateChange(async (event, session) => {
+      if (session?.user) {
+        currentUser = session.user;
+        await loadUserSettings();
+        if (!userSettings.setup_done) {
+          showScreen('setup');
+        } else {
+          showApp();
+        }
+      } else {
+        currentUser = null;
+        showScreen('auth');
+      }
+    });
+  } catch(e) {
+    showToast('⚠️ Chưa cấu hình Supabase. Xem hướng dẫn trong file.', 'error', 6000);
+    showScreen('auth');
+  }
+});
+
+function showScreen(screen) {
+  document.getElementById('auth-screen').style.display = screen === 'auth' ? 'flex' : 'none';
+  document.getElementById('setup-screen').style.display = screen === 'setup' ? 'flex' : 'none';
+  document.getElementById('app').style.display = screen === 'app' ? 'flex' : 'none';
+}
+
+async function showApp() {
+  showScreen('app');
+  const email = currentUser.email || '';
+  document.getElementById('user-email-display').textContent = email.split('@')[0];
+  document.getElementById('user-avatar').textContent = (email[0] || '?').toUpperCase();
+  document.getElementById('settings-email-display').textContent = email;
+  await loadTasks();
+  switchView('kanban');
+  scheduleDeadlineCheck();
+}
+
+// ── AUTH ──────────────────────────────────────────────
+let authMode = 'login';
+function switchTab(mode) {
+  authMode = mode;
+  document.getElementById('tab-login').classList.toggle('active', mode === 'login');
+  document.getElementById('tab-register').classList.toggle('active', mode === 'register');
+  document.getElementById('auth-pass2').classList.toggle('hidden', mode === 'login');
+  document.getElementById('auth-btn').textContent = mode === 'login' ? 'Đăng nhập' : 'Tạo tài khoản';
+  document.getElementById('auth-msg').textContent = '';
+}
+
+async function doAuth() {
+  const email = document.getElementById('auth-email').value.trim();
+  const pass = document.getElementById('auth-pass').value;
+  const pass2 = document.getElementById('auth-pass2').value;
+  const msg = document.getElementById('auth-msg');
+  if (!email || !pass) { msg.textContent = 'Vui lòng điền đầy đủ thông tin'; return; }
+  if (authMode === 'register' && pass !== pass2) { msg.textContent = 'Mật khẩu xác nhận không khớp'; return; }
+  document.getElementById('auth-btn').disabled = true;
+  msg.textContent = '';
+  try {
+    let res;
+    if (authMode === 'login') {
+      res = await sb.auth.signInWithPassword({ email, password: pass });
+    } else {
+      res = await sb.auth.signUp({ email, password: pass });
+      if (!res.error) { msg.className = 'auth-msg auth-success'; msg.textContent = 'Đăng ký thành công! Kiểm tra email để xác nhận (nếu bật).'; }
+    }
+    if (res.error) msg.textContent = res.error.message;
+  } catch(e) { msg.textContent = 'Lỗi kết nối. Kiểm tra cấu hình Supabase.'; }
+  document.getElementById('auth-btn').disabled = false;
+}
+
+async function logout() {
+  await sb.auth.signOut();
+  tasks = [];
+}
+
+// ── SETUP ─────────────────────────────────────────────
+async function saveSetup() {
+  const tgId = document.getElementById('setup-tg-id').value.trim();
+  const token = document.getElementById('setup-bot-token').value.trim();
+  userSettings = { ...userSettings, telegram_chat_id: tgId, bot_token: token, setup_done: true, notify_new: true, notify_status: true, notify_deadline: true };
+  await saveUserSettings();
+  showApp();
+}
+
+async function skipSetup() {
+  userSettings.setup_done = true;
+  await saveUserSettings();
+  showApp();
+}
+
+// ── SETTINGS ──────────────────────────────────────────
+async function loadUserSettings() {
+  try {
+    const { data } = await sb.from('user_settings').select('*').eq('user_id', currentUser.id).single();
+    if (data) {
+      userSettings = { ...userSettings, ...data };
+      document.getElementById('settings-tg-id').value = data.telegram_chat_id || '';
+      document.getElementById('settings-bot-token').value = data.bot_token || '';
+      setToggle('toggle-new', data.notify_new !== false);
+      setToggle('toggle-status', data.notify_status !== false);
+      setToggle('toggle-deadline', data.notify_deadline !== false);
+    }
+  } catch(e) {}
+}
+
+async function saveUserSettings() {
+  try {
+    await sb.from('user_settings').upsert({
+      user_id: currentUser.id,
+      ...userSettings,
+      updated_at: new Date().toISOString()
+    });
+  } catch(e) {}
+}
+
+async function saveSettings() {
+  userSettings.telegram_chat_id = document.getElementById('settings-tg-id').value.trim();
+  userSettings.bot_token = document.getElementById('settings-bot-token').value.trim();
+  userSettings.notify_new = document.getElementById('toggle-new').classList.contains('on');
+  userSettings.notify_status = document.getElementById('toggle-status').classList.contains('on');
+  userSettings.notify_deadline = document.getElementById('toggle-deadline').classList.contains('on');
+  await saveUserSettings();
+  showToast('✅ Đã lưu cài đặt', 'success');
+}
+
+function toggleSetting(key) {
+  const idMap = { notify_new: 'toggle-new', notify_status: 'toggle-status', notify_deadline: 'toggle-deadline' };
+  const el = document.getElementById(idMap[key]);
+  el.classList.toggle('on');
+}
+
+function setToggle(id, val) {
+  const el = document.getElementById(id);
+  if (val) el.classList.add('on'); else el.classList.remove('on');
+}
+
+// ── TASKS ─────────────────────────────────────────────
+async function loadTasks() {
+  try {
+    const { data, error } = await sb.from('tasks').select('*').eq('user_id', currentUser.id).order('created_at', { ascending: false });
+    if (error) throw error;
+    tasks = data || [];
+    updateStats();
+    renderCurrentView();
+  } catch(e) {
+    showToast('Lỗi tải dữ liệu: ' + e.message, 'error');
+  }
+}
+
+function filteredTasks() {
+  const search = (document.getElementById('search-input')?.value || '').toLowerCase();
+  const priority = document.getElementById('priority-filter')?.value || '';
+  return tasks.filter(t => {
+    if (search && !t.title.toLowerCase().includes(search) && !(t.description||'').toLowerCase().includes(search)) return false;
+    if (priority && t.priority !== priority) return false;
+    return true;
+  });
+}
+
+async function saveTask() {
+  const title = document.getElementById('task-title').value.trim();
+  if (!title) { showToast('Vui lòng nhập tiêu đề task', 'error'); return; }
+  const status_prev = editingTaskId ? tasks.find(t => t.id === editingTaskId)?.status : null;
+  const payload = {
+    user_id: currentUser.id,
+    title,
+    description: document.getElementById('task-desc').value.trim(),
+    status: document.getElementById('task-status').value,
+    priority: document.getElementById('task-priority').value,
+    deadline: document.getElementById('task-deadline').value || null,
+    updated_at: new Date().toISOString(),
+  };
+  try {
+    let savedTask;
+    if (editingTaskId) {
+      const { data } = await sb.from('tasks').update(payload).eq('id', editingTaskId).eq('user_id', currentUser.id).select().single();
+      savedTask = data;
+      tasks = tasks.map(t => t.id === editingTaskId ? { ...t, ...payload } : t);
+      if (userSettings.notify_status && status_prev && status_prev !== payload.status) {
+        sendTelegramNotification(`🔄 *Task cập nhật trạng thái*\n📌 ${title}\n${statusLabel(status_prev)} → ${statusLabel(payload.status)}`);
+      }
+    } else {
+      payload.created_at = new Date().toISOString();
+      const { data } = await sb.from('tasks').insert(payload).select().single();
+      savedTask = data;
+      if (data) tasks.unshift(data);
+      if (userSettings.notify_new) {
+        sendTelegramNotification(`✨ *Task mới được tạo*\n📌 ${title}\n${priorityLabel(payload.priority)} · ${statusLabel(payload.status)}${payload.deadline ? '\n🗓 Deadline: ' + formatDeadline(payload.deadline) : ''}`);
+      }
+    }
+    updateStats();
+    renderCurrentView();
+    closeTaskModal();
+    showToast(editingTaskId ? '✅ Đã cập nhật task' : '✅ Đã thêm task mới', 'success');
+  } catch(e) {
+    showToast('Lỗi lưu task: ' + e.message, 'error');
+  }
+}
+
+async function deleteTask(id) {
+  if (!confirm('Xoá task này?')) return;
+  try {
+    await sb.from('tasks').delete().eq('id', id).eq('user_id', currentUser.id);
+    tasks = tasks.filter(t => t.id !== id);
+    updateStats();
+    renderCurrentView();
+    showToast('🗑 Đã xoá task');
+  } catch(e) {
+    showToast('Lỗi xoá task', 'error');
+  }
+}
+
+// ── MODAL ─────────────────────────────────────────────
+function openTaskModal(taskId) {
+  editingTaskId = taskId || null;
+  const modal = document.getElementById('task-modal');
+  if (taskId) {
+    const t = tasks.find(x => x.id === taskId);
+    document.getElementById('modal-title').textContent = 'Chỉnh sửa task';
+    document.getElementById('task-title').value = t.title || '';
+    document.getElementById('task-desc').value = t.description || '';
+    document.getElementById('task-status').value = t.status || 'todo';
+    document.getElementById('task-priority').value = t.priority || 'medium';
+    document.getElementById('task-deadline').value = t.deadline ? t.deadline.slice(0, 16) : '';
+  } else {
+    document.getElementById('modal-title').textContent = 'Thêm task mới';
+    document.getElementById('task-title').value = '';
+    document.getElementById('task-desc').value = '';
+    document.getElementById('task-status').value = 'todo';
+    document.getElementById('task-priority').value = 'medium';
+    document.getElementById('task-deadline').value = '';
+  }
+  modal.classList.add('open');
+  setTimeout(() => document.getElementById('task-title').focus(), 100);
+}
+
+function closeTaskModal() {
+  document.getElementById('task-modal').classList.remove('open');
+  editingTaskId = null;
+}
+
+document.getElementById('task-modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('task-modal')) closeTaskModal();
+});
+
+// ── VIEWS ─────────────────────────────────────────────
+function switchView(view) {
+  currentView = view;
+  ['kanban', 'calendar', 'list', 'settings'].forEach(v => {
+    document.getElementById(v + '-view').style.display = v === view ? 'block' : 'none';
+    document.getElementById('nav-' + v).classList.toggle('active', v === view);
+  });
+  const titles = { kanban: 'Kanban Board', calendar: 'Lịch Công Việc', list: 'Danh Sách', settings: 'Cài Đặt' };
+  document.getElementById('view-title').textContent = titles[view];
+  document.getElementById('stats-bar').style.display = view === 'settings' ? 'none' : '';
+  const toolbarRight = document.querySelector('.toolbar-right');
+  toolbarRight.style.display = view === 'settings' ? 'none' : 'flex';
+  renderCurrentView();
+}
+
+function renderCurrentView() {
+  if (currentView === 'kanban') renderKanban();
+  else if (currentView === 'calendar') renderCalendar();
+  else if (currentView === 'list') renderList();
+  else if (currentView === 'settings') loadUserSettings();
+}
+
+// ── KANBAN ─────────────────────────────────────────────
+function renderKanban() {
+  const ft = filteredTasks();
+  const groups = { todo: [], inprogress: [], done: [] };
+  ft.forEach(t => { if (groups[t.status]) groups[t.status].push(t); else groups.todo.push(t); });
+  ['todo', 'inprogress', 'done'].forEach(status => {
+    const el = document.getElementById('col-' + status + '-cards');
+    document.getElementById('count-' + status).textContent = groups[status].length;
+    if (groups[status].length === 0) {
+      el.innerHTML = '<div class="kanban-empty">Không có task nào</div>'; return;
+    }
+    el.innerHTML = groups[status].map(t => taskCard(t)).join('');
+  });
+}
+
+function taskCard(t) {
+  const dl = deadlineBadge(t.deadline, t.status);
+  return `<div class="task-card" onclick="openTaskModal('${t.id}')">
+    <div class="task-card-actions">
+      <button class="action-btn action-btn-edit" onclick="event.stopPropagation();openTaskModal('${t.id}')">✎</button>
+      <button class="action-btn action-btn-del" onclick="event.stopPropagation();deleteTask('${t.id}')">✕</button>
+    </div>
+    <div class="task-card-title">${esc(t.title)}</div>
+    <div class="task-card-meta">
+      <span class="priority-badge priority-${t.priority}">${priorityLabel(t.priority)}</span>
+      ${dl}
+    </div>
+  </div>`;
+}
+
+// ── LIST ───────────────────────────────────────────────
+function renderList() {
+  const ft = filteredTasks();
+  const el = document.getElementById('task-list-container');
+  if (ft.length === 0) { el.innerHTML = '<div style="text-align:center;padding:48px;color:var(--text-muted)">Không có task nào</div>'; return; }
+  el.innerHTML = ft.map(t => `
+    <div class="task-list-item" onclick="openTaskModal('${t.id}')">
+      <div class="task-list-status status-${t.status}"></div>
+      <div class="task-list-title ${t.status === 'done' ? 'done-text' : ''}">${esc(t.title)}</div>
+      <div class="task-list-meta">
+        <span class="priority-badge priority-${t.priority}">${priorityLabel(t.priority)}</span>
+        ${t.deadline ? `<span style="font-size:12px;color:var(--text-muted)">🗓 ${formatDeadline(t.deadline)}</span>` : ''}
+        <span style="font-size:12px;color:var(--text-muted)">${statusLabel(t.status)}</span>
+      </div>
+      <div class="task-list-actions">
+        <button class="action-btn action-btn-edit" onclick="event.stopPropagation();openTaskModal('${t.id}')">✎</button>
+        <button class="action-btn action-btn-del" onclick="event.stopPropagation();deleteTask('${t.id}')">✕</button>
+      </div>
+    </div>`).join('');
+}
+
+// ── CALENDAR ───────────────────────────────────────────
+function renderCalendar() {
+  const year = calendarDate.getFullYear(), month = calendarDate.getMonth();
+  const months = ['Tháng 1','Tháng 2','Tháng 3','Tháng 4','Tháng 5','Tháng 6','Tháng 7','Tháng 8','Tháng 9','Tháng 10','Tháng 11','Tháng 12'];
+  document.getElementById('cal-month-title').textContent = `${months[month]} ${year}`;
+  const first = new Date(year, month, 1);
+  const last = new Date(year, month + 1, 0);
+  const startDay = (first.getDay() + 6) % 7;
+  const today = new Date(); today.setHours(0,0,0,0);
+  const tasksByDate = {};
+  tasks.forEach(t => {
+    if (!t.deadline) return;
+    const d = t.deadline.slice(0,10);
+    if (!tasksByDate[d]) tasksByDate[d] = [];
+    tasksByDate[d].push(t);
+  });
+  const days = ['T2','T3','T4','T5','T6','T7','CN'];
+  let html = days.map(d => `<div class="cal-dow">${d}</div>`).join('');
+  for (let i = 0; i < startDay; i++) html += `<div class="cal-cell other-month"></div>`;
+  for (let d = 1; d <= last.getDate(); d++) {
+    const dateObj = new Date(year, month, d);
+    const isToday = dateObj.getTime() === today.getTime();
+    const key = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const dayTasks = tasksByDate[key] || [];
+    const showTasks = dayTasks.slice(0,3).map(t => `<div class="cal-task-dot ${t.status}" onclick="openTaskModal('${t.id}')" title="${esc(t.title)}">${esc(t.title)}</div>`).join('');
+    const more = dayTasks.length > 3 ? `<div class="cal-more">+${dayTasks.length-3} nữa</div>` : '';
+    html += `<div class="cal-cell ${isToday ? 'today' : ''}">
+      <div class="cal-date">${isToday ? `<span>${d}</span>` : d}</div>
+      ${showTasks}${more}
+    </div>`;
+  }
+  document.getElementById('cal-grid').innerHTML = html;
+}
+
+function changeMonth(dir) {
+  calendarDate = new Date(calendarDate.getFullYear(), calendarDate.getMonth() + dir, 1);
+  renderCalendar();
+}
+
+// ── STATS ──────────────────────────────────────────────
+function updateStats() {
+  const now = new Date();
+  document.getElementById('stat-total').textContent = tasks.length;
+  document.getElementById('stat-inprogress').textContent = tasks.filter(t => t.status === 'inprogress').length;
+  document.getElementById('stat-done').textContent = tasks.filter(t => t.status === 'done').length;
+  document.getElementById('stat-overdue').textContent = tasks.filter(t => t.deadline && new Date(t.deadline) < now && t.status !== 'done').length;
+}
+
+// ── TELEGRAM ──────────────────────────────────────────
+async function sendTelegramNotification(message) {
+  const chatId = userSettings.telegram_chat_id;
+  if (!chatId) return;
+  const token = userSettings.bot_token || DEFAULT_BOT_TOKEN;
+  if (!token) return;
+  try {
+    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId, text: message, parse_mode: 'Markdown' })
+    });
+  } catch(e) {}
+}
+
+async function testTelegram() {
+  await saveSettings();
+  await sendTelegramNotification(`🧪 *Test thông báo từ TaskFlow*\nBot đã kết nối thành công! Bạn sẽ nhận thông báo tại đây.`);
+  showToast('📤 Đã gửi test — kiểm tra Telegram của bạn');
+}
+
+function scheduleDeadlineCheck() {
+  checkDeadlines();
+  setInterval(checkDeadlines, 60 * 60 * 1000);
+}
+
+function checkDeadlines() {
+  if (!userSettings.notify_deadline || !userSettings.telegram_chat_id) return;
+  const now = new Date();
+  const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+  const upcoming = tasks.filter(t => t.deadline && t.status !== 'done' && new Date(t.deadline) <= tomorrow && new Date(t.deadline) > now);
+  const overdue = tasks.filter(t => t.deadline && t.status !== 'done' && new Date(t.deadline) < now);
+  if (upcoming.length > 0) {
+    const list = upcoming.map(t => `• ${t.title} — ${formatDeadline(t.deadline)}`).join('\n');
+    sendTelegramNotification(`⏰ *Nhắc nhở deadline sắp đến*\n${list}`);
+  }
+  if (overdue.length > 0) {
+    const list = overdue.map(t => `• ${t.title}`).join('\n');
+    sendTelegramNotification(`🚨 *Task đã quá hạn*\n${list}`);
+  }
+}
+
+// ── HELPERS ───────────────────────────────────────────
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function priorityLabel(p) {
+  return { high: '🔴 Cao', medium: '🟡 TB', low: '🟢 Thấp' }[p] || p;
+}
+
+function statusLabel(s) {
+  return { todo: '📋 To Do', inprogress: '🔄 In Progress', done: '✅ Done' }[s] || s;
+}
+
+function formatDeadline(dl) {
+  if (!dl) return '';
+  const d = new Date(dl);
+  return d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+function deadlineBadge(dl, status) {
+  if (!dl || status === 'done') return '';
+  const now = new Date(), d = new Date(dl);
+  const diff = d - now;
+  const cls = diff < 0 ? 'overdue' : diff < 86400000 ? 'soon' : '';
+  const label = diff < 0 ? '⚠️ Quá hạn' : `🗓 ${formatDeadline(dl)}`;
+  return `<span class="deadline-badge ${cls}">${label}</span>`;
+}
+
+function showToast(msg, type = '', duration = 3500) {
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.textContent = msg;
+  document.getElementById('toast-container').appendChild(el);
+  requestAnimationFrame(() => { requestAnimationFrame(() => el.classList.add('show')); });
+  setTimeout(() => {
+    el.classList.remove('show');
+    setTimeout(() => el.remove(), 400);
+  }, duration);
+}
+</script>
+</body>
+</html>
