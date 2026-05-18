@@ -1083,9 +1083,11 @@ async function doAuth() {
   const pass = document.getElementById('auth-pass').value;
   const pass2 = document.getElementById('auth-pass2').value;
   const msg = document.getElementById('auth-msg');
+  const btn = document.getElementById('auth-btn');
   if (!email || !pass) { msg.textContent = 'Vui lòng điền đầy đủ thông tin'; return; }
   if (authMode === 'register' && pass !== pass2) { msg.textContent = 'Mật khẩu xác nhận không khớp'; return; }
-  document.getElementById('auth-btn').disabled = true;
+  btn.disabled = true;
+  btn.textContent = '...';
   msg.textContent = '';
   try {
     let res;
@@ -1093,11 +1095,35 @@ async function doAuth() {
       res = await sb.auth.signInWithPassword({ email, password: pass });
     } else {
       res = await sb.auth.signUp({ email, password: pass });
-      if (!res.error) { msg.className = 'auth-msg auth-success'; msg.textContent = 'Đăng ký thành công! Kiểm tra email để xác nhận (nếu bật).'; }
     }
-    if (res.error) msg.textContent = res.error.message;
-  } catch(e) { msg.textContent = 'Lỗi kết nối. Kiểm tra cấu hình Supabase.'; }
-  document.getElementById('auth-btn').disabled = false;
+    if (res.error) {
+      msg.textContent = res.error.message;
+      btn.disabled = false;
+      btn.textContent = authMode === 'login' ? 'Đăng nhập' : 'Tạo tài khoản';
+      return;
+    }
+    // Xử lý thủ công — không chờ onAuthStateChange
+    if (authMode === 'register') {
+      msg.className = 'auth-msg auth-success';
+      msg.textContent = 'Đăng ký thành công!';
+      btn.disabled = false;
+      btn.textContent = 'Tạo tài khoản';
+    }
+    if (res.data?.session?.user) {
+      currentUser = res.data.session.user;
+      await loadUserSettings();
+      hideLoading();
+      if (!userSettings.setup_done) {
+        showScreen('setup');
+      } else {
+        showApp();
+      }
+    }
+  } catch(e) {
+    msg.textContent = 'Lỗi kết nối: ' + e.message;
+    btn.disabled = false;
+    btn.textContent = authMode === 'login' ? 'Đăng nhập' : 'Tạo tài khoản';
+  }
 }
 
 async function logout() {
