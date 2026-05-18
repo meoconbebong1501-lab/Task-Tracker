@@ -653,6 +653,9 @@
       <input type="password" id="auth-pass" placeholder="Mật khẩu" autocomplete="current-password" onkeydown="if(event.key==='Enter')doAuth()">
       <input type="password" id="auth-pass2" placeholder="Xác nhận mật khẩu" class="hidden" onkeydown="if(event.key==='Enter')doAuth()">
       <button class="btn-primary" id="auth-btn" onclick="doAuth()">Đăng nhập</button>
+      <div id="forgot-link" style="text-align:center;margin-top:4px;">
+        <span onclick="showForgot()" style="font-size:13px;color:var(--text-muted);cursor:pointer;text-decoration:underline;">Quên mật khẩu?</span>
+      </div>
       <div class="auth-msg" id="auth-msg"></div>
     </div>
   </div>
@@ -1075,6 +1078,40 @@
   </div>
 </div>
 
+<!-- ═══════════════ FORGOT PASSWORD MODAL ═══════════════ -->
+<div class="modal-overlay" id="forgot-modal">
+  <div class="modal" style="max-width:400px;">
+    <div class="modal-header">
+      <div class="modal-title">🔑 Quên mật khẩu</div>
+      <button class="modal-close" onclick="closeForgot()">✕</button>
+    </div>
+    <p style="font-size:14px;color:var(--text-muted);margin-bottom:20px;line-height:1.6;">Nhập email đăng ký của bạn. Mình sẽ gửi link đặt lại mật khẩu vào hòm thư.</p>
+    <div class="form-group">
+      <label class="form-label">Email</label>
+      <input type="email" class="form-input" id="forgot-email" placeholder="Email của bạn..." onkeydown="if(event.key==='Enter')sendReset()">
+    </div>
+    <div class="auth-msg" id="forgot-msg"></div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeForgot()">Huỷ</button>
+      <button class="btn-save" id="forgot-btn" onclick="sendReset()">Gửi link đặt lại</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ RESET PASSWORD SCREEN ═══════════════ -->
+<div id="reset-screen" style="display:none;min-height:100vh;background:var(--forest);align-items:center;justify-content:center;">
+  <div class="auth-card">
+    <div class="auth-logo">Task<span>Flow</span></div>
+    <div class="auth-subtitle" style="margin-bottom:24px;">Đặt lại mật khẩu mới</div>
+    <div class="auth-form">
+      <input type="password" id="reset-pass" placeholder="Mật khẩu mới (ít nhất 6 ký tự)" autocomplete="new-password">
+      <input type="password" id="reset-pass2" placeholder="Xác nhận mật khẩu mới" onkeydown="if(event.key==='Enter')doReset()">
+      <button class="btn-primary" id="reset-btn" onclick="doReset()">Đặt lại mật khẩu</button>
+      <div class="auth-msg" id="reset-msg"></div>
+    </div>
+  </div>
+</div>
+
 <!-- Toast container -->
 <div class="toast-container" id="toast-container"></div>
 
@@ -1098,6 +1135,66 @@ let sb, currentUser, tasks = [], userSettings = {
   notify_deadline: true,
 };
 let editingTaskId = null, currentView = 'kanban', calendarDate = new Date();
+
+// ── FORGOT PASSWORD ───────────────────────────────────
+function showForgot() {
+  document.getElementById('forgot-modal').classList.add('open');
+  document.getElementById('forgot-msg').textContent = '';
+  setTimeout(() => document.getElementById('forgot-email').focus(), 100);
+}
+function closeForgot() { document.getElementById('forgot-modal').classList.remove('open'); }
+async function sendReset() {
+  const email = document.getElementById('forgot-email').value.trim();
+  const msg = document.getElementById('forgot-msg');
+  const btn = document.getElementById('forgot-btn');
+  if (!email) { msg.textContent = 'Vui lòng nhập email'; return; }
+  btn.disabled = true; btn.textContent = '...'; msg.textContent = '';
+  try {
+    const { error } = await sb.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin + window.location.pathname
+    });
+    if (error) { msg.textContent = error.message; }
+    else {
+      msg.className = 'auth-msg auth-success';
+      msg.textContent = '✅ Đã gửi! Kiểm tra hòm thư và nhấn link trong email.';
+      btn.textContent = 'Đã gửi ✓';
+    }
+  } catch(e) { msg.textContent = 'Lỗi kết nối'; }
+  btn.disabled = false;
+  if (btn.textContent === '...') btn.textContent = 'Gửi link đặt lại';
+}
+function showResetScreen() {
+  hideLoading();
+  document.getElementById('auth-screen').style.display = 'none';
+  document.getElementById('setup-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('reset-screen').style.display = 'flex';
+}
+async function doReset() {
+  const pass = document.getElementById('reset-pass').value;
+  const pass2 = document.getElementById('reset-pass2').value;
+  const msg = document.getElementById('reset-msg');
+  const btn = document.getElementById('reset-btn');
+  if (!pass || pass.length < 6) { msg.textContent = 'Mật khẩu phải có ít nhất 6 ký tự'; return; }
+  if (pass !== pass2) { msg.textContent = 'Mật khẩu xác nhận không khớp'; return; }
+  btn.disabled = true; btn.textContent = '...';
+  try {
+    const { error } = await sb.auth.updateUser({ password: pass });
+    if (error) { msg.textContent = error.message; }
+    else {
+      msg.className = 'auth-msg auth-success';
+      msg.textContent = '✅ Đổi mật khẩu thành công!';
+      setTimeout(async () => {
+        document.getElementById('reset-screen').style.display = 'none';
+        currentUser = (await sb.auth.getUser()).data.user;
+        await loadUserSettings();
+        showApp();
+      }, 1500);
+    }
+  } catch(e) { msg.textContent = 'Lỗi: ' + e.message; }
+  btn.disabled = false;
+  if (btn.textContent === '...') btn.textContent = 'Đặt lại mật khẩu';
+}
 
 // ── INIT ──────────────────────────────────────────────
 function initApp() {
@@ -1139,7 +1236,9 @@ function initApp() {
 
     // Vẫn giữ onAuthStateChange để bắt login/logout events
     sb.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_OUT') {
+      if (event === 'PASSWORD_RECOVERY') {
+        showResetScreen();
+      } else if (event === 'SIGNED_OUT') {
         currentUser = null;
         tasks = [];
         showScreen('auth');
@@ -1171,6 +1270,7 @@ function showScreen(screen) {
   document.getElementById('auth-screen').style.display = screen === 'auth' ? 'flex' : 'none';
   document.getElementById('setup-screen').style.display = screen === 'setup' ? 'flex' : 'none';
   document.getElementById('app').style.display = screen === 'app' ? 'flex' : 'none';
+  document.getElementById('reset-screen').style.display = 'none';
   if (screen === 'setup') goSlide(0);
 }
 
@@ -1193,6 +1293,7 @@ function switchTab(mode) {
   document.getElementById('tab-register').classList.toggle('active', mode === 'register');
   document.getElementById('auth-pass2').classList.toggle('hidden', mode === 'login');
   document.getElementById('auth-btn').textContent = mode === 'login' ? 'Đăng nhập' : 'Tạo tài khoản';
+  document.getElementById('forgot-link').style.display = mode === 'login' ? 'block' : 'none';
   document.getElementById('auth-msg').textContent = '';
 }
 
