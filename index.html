@@ -1550,11 +1550,29 @@ async function loadTasks() {
     const { data, error } = await sb.from('tasks').select('*').eq('user_id', currentUser.id).order('created_at', { ascending: false });
     if (error) throw error;
     tasks = data || [];
+    await autoDeleteDoneTasks();
     updateStats();
     renderCurrentView();
   } catch(e) {
     showToast('Lỗi tải dữ liệu: ' + e.message, 'error');
   }
+}
+
+async function autoDeleteDoneTasks() {
+  const now = new Date();
+  const toDelete = tasks.filter(t => {
+    if (t.status !== 'done') return false;
+    const updatedAt = new Date(t.updated_at || t.created_at);
+    return (now - updatedAt) >= 24 * 60 * 60 * 1000; // 24 tiếng
+  });
+  if (toDelete.length === 0) return;
+  const ids = toDelete.map(t => t.id);
+  try {
+    await sb.from('tasks').delete().in('id', ids).eq('user_id', currentUser.id);
+    ids.forEach(id => _reminded.clear(id));
+    tasks = tasks.filter(t => !ids.includes(t.id));
+    showToast(`🗑 Đã tự xoá ${toDelete.length} task hoàn thành quá 24 giờ`);
+  } catch(e) {}
 }
 
 function filteredTasks() {
