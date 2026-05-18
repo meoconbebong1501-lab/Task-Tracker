@@ -1376,23 +1376,58 @@ async function testAllNotifications() {
 
 function scheduleDeadlineCheck() {
   checkDeadlines();
-  setInterval(checkDeadlines, 60 * 60 * 1000);
+  // Check mỗi phút để bắt đúng mốc 15 phút và 1 tiếng
+  setInterval(checkDeadlines, 60 * 1000);
 }
+
+// Lưu lại các task đã được nhắc để không nhắc lại
+const _reminded = { h1: new Set(), m15: new Set() };
 
 function checkDeadlines() {
   if (!userSettings.notify_deadline) return;
   const now = new Date();
-  const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
-  const upcoming = tasks.filter(t => t.deadline && t.status !== 'done' && new Date(t.deadline) <= tomorrow && new Date(t.deadline) > now);
-  const overdue = tasks.filter(t => t.deadline && t.status !== 'done' && new Date(t.deadline) < now);
-  if (upcoming.length > 0) {
-    const list = upcoming.map(t => `• ${t.title} — ${formatDeadline(t.deadline)}`).join('\n');
-    sendNotification('⏰ Deadline sắp đến', list, `⏰ *Nhắc nhở deadline*\n${list}`);
-  }
-  if (overdue.length > 0) {
-    const list = overdue.map(t => `• ${t.title}`).join('\n');
-    sendNotification('🚨 Task quá hạn', list, `🚨 *Task quá hạn*\n${list}`);
-  }
+
+  tasks.forEach(t => {
+    if (!t.deadline || t.status === 'done') return;
+    const dl = new Date(t.deadline);
+    const diff = dl - now; // ms còn lại
+
+    // Quá hạn
+    if (diff < 0) {
+      const overdueKey = t.id + '_overdue';
+      if (!_reminded.h1.has(overdueKey)) {
+        _reminded.h1.add(overdueKey);
+        sendNotification(
+          '🚨 Task quá hạn',
+          `${t.title}`,
+          `🚨 *Task quá hạn rồi!*\n📌 ${t.title}\nDeadline: ${formatDeadline(t.deadline)}`
+        );
+      }
+      return;
+    }
+
+    // Còn đúng ~1 tiếng (55–65 phút)
+    const in1h = diff >= 55 * 60 * 1000 && diff <= 65 * 60 * 1000;
+    if (in1h && !_reminded.h1.has(t.id)) {
+      _reminded.h1.add(t.id);
+      sendNotification(
+        '⏰ Còn 1 tiếng',
+        `"${t.title}" đến hạn lúc ${formatDeadline(t.deadline)}`,
+        `⏰ *Còn 1 tiếng nữa đến deadline!*\n📌 ${t.title}\n🕐 ${formatDeadline(t.deadline)}`
+      );
+    }
+
+    // Còn đúng ~15 phút (13–17 phút)
+    const in15m = diff >= 13 * 60 * 1000 && diff <= 17 * 60 * 1000;
+    if (in15m && !_reminded.m15.has(t.id)) {
+      _reminded.m15.add(t.id);
+      sendNotification(
+        '🔥 Còn 15 phút!',
+        `"${t.title}" sắp đến hạn!`,
+        `🔥 *Chỉ còn 15 phút!*\n📌 ${t.title}\n🕐 ${formatDeadline(t.deadline)}\n\nNhanh lên nào! 💪`
+      );
+    }
+  });
 }
 
 // ── TASKS ─────────────────────────────────────────────
@@ -1440,6 +1475,11 @@ async function saveTask() {
       if (userSettings.notify_status && status_prev && status_prev !== payload.status) {
         const msg = `Task đổi trạng thái: ${statusLabel(status_prev)} → ${statusLabel(payload.status)}`;
         sendNotification('🔄 ' + title, msg, `🔄 *Task cập nhật trạng thái*\n📌 ${title}\n${statusLabel(status_prev)} → ${statusLabel(payload.status)}`);
+        // Nếu done thì xoá khỏi danh sách nhắc
+        if (payload.status === 'done') {
+          _reminded.h1.delete(editingTaskId);
+          _reminded.m15.delete(editingTaskId);
+        }
       }
     } else {
       payload.created_at = new Date().toISOString();
