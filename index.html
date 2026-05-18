@@ -415,6 +415,26 @@
   }
   .toggle.on::after { left: 21px; }
 
+  /* ── NOTIFICATION CHANNELS ── */
+  .notif-channel-row {
+    display: flex; align-items: center; gap: 12px;
+    padding: 14px 0; border-bottom: 1px solid var(--border);
+  }
+  .notif-channel-row:last-child { border-bottom: none; }
+  .notif-channel-icon {
+    width: 36px; height: 36px; border-radius: 8px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center; font-size: 16px;
+  }
+  .btn-channel {
+    padding: 7px 14px; border-radius: 7px; border: 1px solid var(--border-strong);
+    background: white; color: var(--text); font-size: 12px; font-weight: 500;
+    cursor: pointer; font-family: 'DM Sans', sans-serif; white-space: nowrap;
+    transition: all 0.15s; flex-shrink: 0;
+  }
+  .btn-channel:hover { background: var(--cream-dark); }
+  .btn-channel.active { background: var(--moss); color: white; border-color: var(--moss); }
+  .btn-channel.blocked { background: rgba(192,57,43,0.08); color: var(--red); border-color: rgba(192,57,43,0.2); cursor: default; }
+
   /* ── TELEGRAM BADGE ── */
   .tg-badge {
     display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px;
@@ -582,66 +602,92 @@
 
     <!-- Settings View -->
     <div id="settings-view">
+
+      <!-- Kênh thông báo -->
       <div class="settings-card">
-        <h3>🔔 Thông báo Telegram</h3>
-        <div class="settings-row">
-          <div>
-            <div class="settings-row-label">Telegram Chat ID</div>
-            <div class="settings-row-sub">Nhận thông báo trực tiếp vào Telegram của bạn</div>
+        <h3>🔔 Kênh thông báo</h3>
+        <p style="font-size:13px;color:var(--text-muted);margin-bottom:20px;line-height:1.6;">Bật kênh nào tiện nhất — không cần bật hết cũng được.</p>
+
+        <!-- Browser Push -->
+        <div class="notif-channel-row">
+          <div class="notif-channel-icon" style="background:rgba(37,99,235,0.1);color:#2563eb;">🖥️</div>
+          <div style="flex:1;">
+            <div class="settings-row-label">Trình duyệt &amp; điện thoại</div>
+            <div class="settings-row-sub" id="push-status-text">Popup ngay trên màn hình — không cần cài app gì thêm</div>
           </div>
-          <input type="text" class="form-input" id="settings-tg-id" style="width:160px" placeholder="Chat ID">
+          <button class="btn-channel" id="btn-push" onclick="setupBrowserPush()">Bật ngay</button>
         </div>
-        <div class="settings-row">
-          <div>
-            <div class="settings-row-label">Bot Token</div>
-            <div class="settings-row-sub">Để trống để dùng bot mặc định</div>
+
+        <!-- Email -->
+        <div class="notif-channel-row">
+          <div class="notif-channel-icon" style="background:rgba(78,140,98,0.12);color:var(--moss);">✉️</div>
+          <div style="flex:1;">
+            <div class="settings-row-label">Email</div>
+            <div class="settings-row-sub">Gửi vào hòm thư <span id="settings-email-inline" style="font-weight:500;color:var(--text);"></span></div>
           </div>
-          <input type="text" class="form-input" id="settings-bot-token" style="width:200px" placeholder="Tuỳ chọn">
+          <div class="toggle on" id="toggle-email" onclick="toggleSetting('notify_email')"></div>
         </div>
+
+        <!-- Telegram -->
+        <div class="notif-channel-row" style="flex-wrap:wrap;gap:0;">
+          <div style="display:flex;align-items:center;gap:12px;width:100%;padding-bottom:0;">
+            <div class="notif-channel-icon" style="background:rgba(37,161,218,0.1);color:#1a87b5;">✈️</div>
+            <div style="flex:1;">
+              <div class="settings-row-label">Telegram</div>
+              <div class="settings-row-sub">Nhận tin nhắn trực tiếp trên Telegram của bạn</div>
+            </div>
+            <div class="toggle" id="toggle-telegram" onclick="toggleTelegram()"></div>
+          </div>
+          <div id="telegram-setup-panel" style="display:none;width:100%;margin-top:12px;padding:14px;background:var(--cream-dark);border-radius:8px;">
+            <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px;line-height:1.8;">
+              👉 Mở Telegram → Tìm <strong>@userinfobot</strong> → Gửi <code>/start</code> → Copy dãy số ID nhận được → Dán vào ô bên dưới.
+            </div>
+            <input type="text" class="form-input" id="settings-tg-id" placeholder="Dán Chat ID vào đây (VD: 123456789)" style="font-size:13px;">
+          </div>
+        </div>
+      </div>
+
+      <!-- Loại thông báo -->
+      <div class="settings-card">
+        <h3>⚡ Gửi thông báo khi nào</h3>
         <div class="settings-row">
           <div>
-            <div class="settings-row-label">Thông báo task mới</div>
+            <div class="settings-row-label">Tạo task mới</div>
+            <div class="settings-row-sub">Ngay khi bạn thêm một task</div>
           </div>
           <div class="toggle on" id="toggle-new" onclick="toggleSetting('notify_new')"></div>
         </div>
         <div class="settings-row">
           <div>
-            <div class="settings-row-label">Thông báo chuyển trạng thái</div>
+            <div class="settings-row-label">Chuyển trạng thái</div>
+            <div class="settings-row-sub">Khi task đổi từ To Do → In Progress → Done</div>
           </div>
           <div class="toggle on" id="toggle-status" onclick="toggleSetting('notify_status')"></div>
         </div>
         <div class="settings-row">
           <div>
-            <div class="settings-row-label">Nhắc nhở deadline (hàng ngày)</div>
-            <div class="settings-row-sub">Gửi lúc 8:00 sáng mỗi ngày</div>
+            <div class="settings-row-label">Nhắc deadline hàng ngày</div>
+            <div class="settings-row-sub">8:00 sáng mỗi ngày nếu có task sắp đến hạn</div>
           </div>
           <div class="toggle on" id="toggle-deadline" onclick="toggleSetting('notify_deadline')"></div>
         </div>
-        <div style="margin-top:18px; display:flex; gap:10px;">
+        <div style="margin-top:20px;display:flex;gap:10px;flex-wrap:wrap;">
           <button class="btn-save" onclick="saveSettings()">Lưu cài đặt</button>
-          <button class="btn-cancel" onclick="testTelegram()">🧪 Test thông báo</button>
+          <button class="btn-cancel" onclick="testAllNotifications()">🧪 Gửi thông báo thử</button>
         </div>
       </div>
 
+      <!-- Tài khoản -->
       <div class="settings-card">
         <h3>👤 Tài khoản</h3>
         <div class="settings-row">
           <div>
-            <div class="settings-row-label">Email</div>
+            <div class="settings-row-label">Email đăng nhập</div>
             <div class="settings-row-sub" id="settings-email-display"></div>
           </div>
         </div>
         <div style="margin-top:18px;">
           <button class="btn-cancel" onclick="logout()">Đăng xuất</button>
-        </div>
-      </div>
-
-      <div class="settings-card">
-        <h3>⚙️ Hướng dẫn Supabase</h3>
-        <div style="font-size:13px; color:var(--text-muted); line-height:1.8;">
-          <p>App này cần <strong>Supabase URL</strong> và <strong>Anon Key</strong> để hoạt động.</p>
-          <p style="margin-top:10px;">Nhớ cập nhật <code>SUPABASE_URL</code> và <code>SUPABASE_ANON_KEY</code> ở đầu file <code>index.html</code>.</p>
-          <p style="margin-top:10px;">Và chạy file <code>supabase-setup.sql</code> trong SQL Editor của Supabase Dashboard.</p>
         </div>
       </div>
     </div>
@@ -817,12 +863,24 @@ async function loadUserSettings() {
     const { data } = await sb.from('user_settings').select('*').eq('user_id', currentUser.id).single();
     if (data) {
       userSettings = { ...userSettings, ...data };
-      document.getElementById('settings-tg-id').value = data.telegram_chat_id || '';
-      document.getElementById('settings-bot-token').value = data.bot_token || '';
+      const tgId = data.telegram_chat_id || '';
+      const tgEl = document.getElementById('settings-tg-id');
+      if (tgEl) tgEl.value = tgId;
       setToggle('toggle-new', data.notify_new !== false);
       setToggle('toggle-status', data.notify_status !== false);
       setToggle('toggle-deadline', data.notify_deadline !== false);
+      setToggle('toggle-email', data.notify_email !== false);
+      const tgOn = !!(tgId && data.notify_telegram);
+      setToggle('toggle-telegram', tgOn);
+      const panel = document.getElementById('telegram-setup-panel');
+      if (panel) panel.style.display = (tgOn || tgId) ? 'block' : 'none';
     }
+    const email = currentUser.email || '';
+    const emailInline = document.getElementById('settings-email-inline');
+    if (emailInline) emailInline.textContent = email;
+    const emailDisplay = document.getElementById('settings-email-display');
+    if (emailDisplay) emailDisplay.textContent = email;
+    updatePushButtonState();
   } catch(e) {}
 }
 
@@ -837,24 +895,143 @@ async function saveUserSettings() {
 }
 
 async function saveSettings() {
-  userSettings.telegram_chat_id = document.getElementById('settings-tg-id').value.trim();
-  userSettings.bot_token = document.getElementById('settings-bot-token').value.trim();
+  const tgEl = document.getElementById('settings-tg-id');
+  if (tgEl) userSettings.telegram_chat_id = tgEl.value.trim();
   userSettings.notify_new = document.getElementById('toggle-new').classList.contains('on');
   userSettings.notify_status = document.getElementById('toggle-status').classList.contains('on');
   userSettings.notify_deadline = document.getElementById('toggle-deadline').classList.contains('on');
+  userSettings.notify_email = document.getElementById('toggle-email').classList.contains('on');
+  userSettings.notify_telegram = document.getElementById('toggle-telegram').classList.contains('on');
   await saveUserSettings();
   showToast('✅ Đã lưu cài đặt', 'success');
 }
 
 function toggleSetting(key) {
-  const idMap = { notify_new: 'toggle-new', notify_status: 'toggle-status', notify_deadline: 'toggle-deadline' };
+  const idMap = { notify_new: 'toggle-new', notify_status: 'toggle-status', notify_deadline: 'toggle-deadline', notify_email: 'toggle-email', notify_telegram: 'toggle-telegram' };
   const el = document.getElementById(idMap[key]);
+  if (el) el.classList.toggle('on');
+}
+
+function toggleTelegram() {
+  const el = document.getElementById('toggle-telegram');
   el.classList.toggle('on');
+  const panel = document.getElementById('telegram-setup-panel');
+  panel.style.display = el.classList.contains('on') ? 'block' : 'none';
+  if (el.classList.contains('on')) setTimeout(() => document.getElementById('settings-tg-id').focus(), 100);
 }
 
 function setToggle(id, val) {
   const el = document.getElementById(id);
+  if (!el) return;
   if (val) el.classList.add('on'); else el.classList.remove('on');
+}
+
+// ── BROWSER PUSH ──────────────────────────────────────
+function updatePushButtonState() {
+  const btn = document.getElementById('btn-push');
+  const txt = document.getElementById('push-status-text');
+  if (!btn || !txt) return;
+  if (!('Notification' in window)) {
+    btn.textContent = 'Không hỗ trợ'; btn.className = 'btn-channel blocked'; return;
+  }
+  if (Notification.permission === 'granted') {
+    btn.textContent = '✓ Đã bật'; btn.className = 'btn-channel active';
+    txt.textContent = 'Đang hoạt động — bạn sẽ nhận popup ngay trên màn hình';
+    userSettings.notify_push = true;
+  } else if (Notification.permission === 'denied') {
+    btn.textContent = 'Đã bị chặn'; btn.className = 'btn-channel blocked';
+    txt.textContent = 'Bị chặn — vào Settings trình duyệt → Site permissions để bật lại';
+  } else {
+    btn.textContent = 'Bật ngay'; btn.className = 'btn-channel';
+    txt.textContent = 'Popup trực tiếp trên màn hình — không cần cài app gì thêm';
+  }
+}
+
+async function setupBrowserPush() {
+  if (!('Notification' in window)) { showToast('Trình duyệt không hỗ trợ thông báo', 'error'); return; }
+  if (Notification.permission === 'denied') { showToast('Bị chặn — vào Settings trình duyệt để bật lại', 'error'); return; }
+  const permission = await Notification.requestPermission();
+  updatePushButtonState();
+  if (permission === 'granted') {
+    userSettings.notify_push = true;
+    await saveUserSettings();
+    sendBrowserNotification('🎉 TaskFlow', 'Thông báo trình duyệt đã được bật!');
+    showToast('✅ Đã bật thông báo trình duyệt', 'success');
+  } else {
+    showToast('Bạn đã từ chối thông báo', 'error');
+  }
+}
+
+function sendBrowserNotification(title, body) {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  try { new Notification(title, { body }); } catch(e) {}
+}
+
+// ── EMAIL NOTIFICATION ─────────────────────────────────
+async function sendEmailNotification(subject, body) {
+  if (!userSettings.notify_email) return;
+  // Nếu đã cài EmailJS: điền 3 biến bên dưới
+  const EJS_PUBLIC = '';   // emailjs public key
+  const EJS_SERVICE = '';  // service id
+  const EJS_TEMPLATE = ''; // template id
+  if (EJS_PUBLIC && EJS_SERVICE && EJS_TEMPLATE && window.emailjs) {
+    try {
+      await emailjs.send(EJS_SERVICE, EJS_TEMPLATE, { to_email: currentUser.email, subject, message: body });
+    } catch(e) {}
+  }
+}
+
+// ── TELEGRAM ──────────────────────────────────────────
+async function sendTelegramNotification(message) {
+  if (!userSettings.notify_telegram) return;
+  const chatId = userSettings.telegram_chat_id;
+  if (!chatId) return;
+  const token = userSettings.bot_token || DEFAULT_BOT_TOKEN;
+  if (!token) return;
+  try {
+    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId, text: message, parse_mode: 'Markdown' })
+    });
+  } catch(e) {}
+}
+
+// ── SEND ALL CHANNELS ─────────────────────────────────
+async function sendNotification(title, body, telegramMsg) {
+  if (userSettings.notify_push) sendBrowserNotification('TaskFlow — ' + title, body);
+  if (userSettings.notify_email) sendEmailNotification(title, body);
+  if (userSettings.notify_telegram) sendTelegramNotification(telegramMsg || `*${title}*\n${body}`);
+}
+
+async function testAllNotifications() {
+  await saveSettings();
+  const msg = 'Mọi kênh đang hoạt động bình thường 🎉';
+  sendBrowserNotification('🧪 TaskFlow — Test', msg);
+  sendEmailNotification('Test thông báo TaskFlow', msg);
+  sendTelegramNotification(`🧪 *Test thông báo TaskFlow*\n${msg}`);
+  showToast('📤 Đã gửi test — kiểm tra các kênh đã bật');
+}
+
+function scheduleDeadlineCheck() {
+  checkDeadlines();
+  setInterval(checkDeadlines, 60 * 60 * 1000);
+}
+
+function checkDeadlines() {
+  if (!userSettings.notify_deadline) return;
+  const now = new Date();
+  const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+  const upcoming = tasks.filter(t => t.deadline && t.status !== 'done' && new Date(t.deadline) <= tomorrow && new Date(t.deadline) > now);
+  const overdue = tasks.filter(t => t.deadline && t.status !== 'done' && new Date(t.deadline) < now);
+  if (upcoming.length > 0) {
+    const list = upcoming.map(t => `• ${t.title} — ${formatDeadline(t.deadline)}`).join('\n');
+    sendNotification('⏰ Deadline sắp đến', list, `⏰ *Nhắc nhở deadline*\n${list}`);
+  }
+  if (overdue.length > 0) {
+    const list = overdue.map(t => `• ${t.title}`).join('\n');
+    sendNotification('🚨 Task quá hạn', list, `🚨 *Task quá hạn*\n${list}`);
+  }
 }
 
 // ── TASKS ─────────────────────────────────────────────
@@ -900,7 +1077,8 @@ async function saveTask() {
       savedTask = data;
       tasks = tasks.map(t => t.id === editingTaskId ? { ...t, ...payload } : t);
       if (userSettings.notify_status && status_prev && status_prev !== payload.status) {
-        sendTelegramNotification(`🔄 *Task cập nhật trạng thái*\n📌 ${title}\n${statusLabel(status_prev)} → ${statusLabel(payload.status)}`);
+        const msg = `Task đổi trạng thái: ${statusLabel(status_prev)} → ${statusLabel(payload.status)}`;
+        sendNotification('🔄 ' + title, msg, `🔄 *Task cập nhật trạng thái*\n📌 ${title}\n${statusLabel(status_prev)} → ${statusLabel(payload.status)}`);
       }
     } else {
       payload.created_at = new Date().toISOString();
@@ -908,7 +1086,8 @@ async function saveTask() {
       savedTask = data;
       if (data) tasks.unshift(data);
       if (userSettings.notify_new) {
-        sendTelegramNotification(`✨ *Task mới được tạo*\n📌 ${title}\n${priorityLabel(payload.priority)} · ${statusLabel(payload.status)}${payload.deadline ? '\n🗓 Deadline: ' + formatDeadline(payload.deadline) : ''}`);
+        const body = `${priorityLabel(payload.priority)} · ${statusLabel(payload.status)}${payload.deadline ? ' · Deadline: ' + formatDeadline(payload.deadline) : ''}`;
+        sendNotification('✨ Task mới: ' + title, body, `✨ *Task mới được tạo*\n📌 ${title}\n${body}`);
       }
     }
     updateStats();
@@ -1085,48 +1264,6 @@ function updateStats() {
   document.getElementById('stat-inprogress').textContent = tasks.filter(t => t.status === 'inprogress').length;
   document.getElementById('stat-done').textContent = tasks.filter(t => t.status === 'done').length;
   document.getElementById('stat-overdue').textContent = tasks.filter(t => t.deadline && new Date(t.deadline) < now && t.status !== 'done').length;
-}
-
-// ── TELEGRAM ──────────────────────────────────────────
-async function sendTelegramNotification(message) {
-  const chatId = userSettings.telegram_chat_id;
-  if (!chatId) return;
-  const token = userSettings.bot_token || DEFAULT_BOT_TOKEN;
-  if (!token) return;
-  try {
-    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: chatId, text: message, parse_mode: 'Markdown' })
-    });
-  } catch(e) {}
-}
-
-async function testTelegram() {
-  await saveSettings();
-  await sendTelegramNotification(`🧪 *Test thông báo từ TaskFlow*\nBot đã kết nối thành công! Bạn sẽ nhận thông báo tại đây.`);
-  showToast('📤 Đã gửi test — kiểm tra Telegram của bạn');
-}
-
-function scheduleDeadlineCheck() {
-  checkDeadlines();
-  setInterval(checkDeadlines, 60 * 60 * 1000);
-}
-
-function checkDeadlines() {
-  if (!userSettings.notify_deadline || !userSettings.telegram_chat_id) return;
-  const now = new Date();
-  const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
-  const upcoming = tasks.filter(t => t.deadline && t.status !== 'done' && new Date(t.deadline) <= tomorrow && new Date(t.deadline) > now);
-  const overdue = tasks.filter(t => t.deadline && t.status !== 'done' && new Date(t.deadline) < now);
-  if (upcoming.length > 0) {
-    const list = upcoming.map(t => `• ${t.title} — ${formatDeadline(t.deadline)}`).join('\n');
-    sendTelegramNotification(`⏰ *Nhắc nhở deadline sắp đến*\n${list}`);
-  }
-  if (overdue.length > 0) {
-    const list = overdue.map(t => `• ${t.title}`).join('\n');
-    sendTelegramNotification(`🚨 *Task đã quá hạn*\n${list}`);
-  }
 }
 
 // ── HELPERS ───────────────────────────────────────────
