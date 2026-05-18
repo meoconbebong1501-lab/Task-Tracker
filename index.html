@@ -605,41 +605,25 @@
     <div class="onboard-slide" id="slide-2" style="display:none;">
       <div class="onboard-icon">✈️</div>
       <h2 class="onboard-title">Kết nối Telegram <span style="font-size:14px;font-weight:400;color:var(--text-muted);">(tuỳ chọn)</span></h2>
-      <p class="onboard-desc">Nhận thông báo thẳng vào Telegram — tiện hơn khi không mở trình duyệt. Làm theo 3 bước sau:</p>
+      <p class="onboard-desc">Nhận thông báo thẳng vào Telegram. Làm theo đúng 4 bước — bỏ sót bước nào là không nhận được thông báo nhé!</p>
 
-      <!-- Hướng dẫn từng bước có hình minh hoạ -->
       <div class="tg-guide">
+
         <div class="tg-step">
           <div class="tg-step-num">1</div>
           <div class="tg-step-body">
-            <div class="tg-step-title">Mở Telegram, tìm <code>@userinfobot</code></div>
-            <div class="tg-step-sub">Gõ vào ô tìm kiếm của Telegram, chọn bot có tên <strong>userinfobot</strong></div>
-            <div class="tg-mockup-search">
-              <div class="tg-mockup-bar">🔍 &nbsp;userinfobot</div>
-              <div class="tg-mockup-result">
-                <div class="tg-mockup-avatar">🤖</div>
-                <div>
-                  <div style="font-size:13px;font-weight:600;">userinfobot</div>
-                  <div style="font-size:11px;color:var(--text-muted);">@userinfobot · Bot</div>
-                </div>
-              </div>
-            </div>
+            <div class="tg-step-title">Mở Telegram → tìm bot <code id="bot-username-display">@TaskFlowBot</code></div>
+            <div class="tg-step-sub">Gõ tên bot vào ô tìm kiếm, chọn kết quả hiện ra</div>
           </div>
         </div>
 
         <div class="tg-step">
           <div class="tg-step-num">2</div>
           <div class="tg-step-body">
-            <div class="tg-step-title">Nhấn <strong>Start</strong> hoặc gõ <code>/start</code></div>
-            <div class="tg-step-sub">Bot sẽ trả lời ngay với thông tin của bạn</div>
-            <div class="tg-mockup-chat">
-              <div class="tg-bubble tg-bubble-out">/start</div>
-              <div class="tg-bubble tg-bubble-in">
-                <strong>Your Telegram info:</strong><br>
-                Id: <span style="color:#1a87b5;font-weight:700;">123456789</span><br>
-                First: Nguyen<br>
-                Username: @nguyenvan
-              </div>
+            <div class="tg-step-title" style="color:var(--red);">⚠️ Nhấn <strong>Start</strong> trong bot — bắt buộc!</div>
+            <div class="tg-step-sub">Nếu không nhấn Start, bot sẽ không gửi được tin nhắn cho bạn. Đây là bước quan trọng nhất.</div>
+            <div style="background:#fff8f0;border:1px solid rgba(212,132,58,0.3);border-radius:8px;padding:10px 12px;margin-top:8px;font-size:12px;color:var(--amber);font-weight:500;">
+              👉 Mở bot → thấy nút "<strong>Start</strong>" màu xanh → nhấn vào đó
             </div>
           </div>
         </div>
@@ -647,12 +631,29 @@
         <div class="tg-step">
           <div class="tg-step-num">3</div>
           <div class="tg-step-body">
-            <div class="tg-step-title">Copy dãy số <strong>Id</strong> và dán vào đây</div>
-            <div class="tg-step-sub">Chỉ copy phần số, ví dụ: <code>123456789</code></div>
+            <div class="tg-step-title">Tìm <code>@userinfobot</code> → nhấn Start → copy số ID</div>
+            <div class="tg-step-sub">Bot sẽ trả lời ngay với dãy số ID của bạn</div>
+            <div class="tg-mockup-chat">
+              <div class="tg-bubble tg-bubble-out">/start</div>
+              <div class="tg-bubble tg-bubble-in">
+                Your info:<br>
+                Id: <span style="color:#1a87b5;font-weight:700;">123456789</span> ← Copy số này<br>
+                First: Tên bạn
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tg-step">
+          <div class="tg-step-num">4</div>
+          <div class="tg-step-body">
+            <div class="tg-step-title">Dán dãy số vào đây</div>
+            <div class="tg-step-sub">Chỉ copy phần số, ví dụ: <code>123456789</code> — không phải @username</div>
             <input type="text" id="setup-tg-id" class="form-input" placeholder="Dán Chat ID vào đây..." style="margin-top:10px;font-size:14px;" oninput="validateTgId(this)">
             <div id="tg-id-hint" style="font-size:12px;margin-top:6px;min-height:16px;"></div>
           </div>
         </div>
+
       </div>
 
       <div style="display:flex;gap:10px;margin-top:4px;flex-wrap:wrap;">
@@ -675,28 +676,30 @@
     </div>
     <div style="font-size:14px;line-height:1.8;color:var(--text);">
 
-      <div class="guide-section">
-        <div class="guide-step-badge">Bước 1</div>
-        <p>Mở app <strong>Telegram</strong> trên điện thoại hoặc máy tính.</p>
+      <div style="background:rgba(212,132,58,0.1);border-radius:10px;padding:14px 16px;margin-bottom:20px;font-size:13px;color:var(--amber);font-weight:500;line-height:1.6;">
+        ⚠️ Quan trọng: phải làm đủ 4 bước theo thứ tự, đặc biệt <strong>Bước 2</strong> — nếu bỏ qua sẽ không nhận được thông báo.
       </div>
 
       <div class="guide-section">
-        <div class="guide-step-badge">Bước 2</div>
-        <p>Nhấn vào <strong>ô tìm kiếm</strong> (kính lúp 🔍) và gõ:</p>
-        <div class="guide-code-box">@userinfobot</div>
-        <p style="margin-top:8px;">Chọn kết quả đầu tiên có tên <strong>userinfobot</strong> với biểu tượng 🤖</p>
+        <div class="guide-step-badge">Bước 1 — Tìm bot TaskFlow</div>
+        <p>Mở Telegram → nhấn vào kính lúp 🔍 → gõ tên bot:</p>
+        <div class="guide-code-box">@TaskFlowNotifyBot</div>
+        <p style="margin-top:8px;">Chọn kết quả đầu tiên hiện ra (có biểu tượng 🤖)</p>
       </div>
 
       <div class="guide-section">
-        <div class="guide-step-badge">Bước 3</div>
-        <p>Nhấn nút <strong>Start</strong> màu xanh ở dưới cùng (hoặc gõ <code>/start</code> rồi gửi).</p>
+        <div class="guide-step-badge" style="background:var(--red);">Bước 2 — Nhấn Start (bắt buộc!)</div>
+        <p>Khi vào trang bot, nhấn nút <strong>Start</strong> màu xanh ở dưới cùng màn hình.</p>
+        <div style="background:#fff0f0;border-radius:8px;padding:12px;margin-top:8px;font-size:13px;color:var(--red);line-height:1.6;">
+          ❌ Nếu không nhấn Start, bot không thể gửi tin nhắn cho bạn dù bạn đã điền đúng Chat ID.<br>
+          ✅ Sau khi nhấn Start, bot sẽ gửi tin nhắn chào — vậy là được rồi.
+        </div>
       </div>
 
       <div class="guide-section">
-        <div class="guide-step-badge">Bước 4</div>
-        <p>Bot sẽ trả lời ngay. Tìm dòng chữ <strong>Id:</strong> và copy dãy số đó.</p>
+        <div class="guide-step-badge">Bước 3 — Lấy Chat ID của bạn</div>
+        <p>Tìm bot <strong>@userinfobot</strong> → nhấn Start → bot trả lời ngay với thông tin của bạn:</p>
         <div class="guide-example-box">
-          <div style="font-size:13px;color:var(--text-muted);margin-bottom:6px;">Ví dụ tin nhắn bot trả lời:</div>
           <div style="background:white;border-radius:8px;padding:12px;font-size:13px;border:1px solid var(--border);">
             Your Telegram info:<br>
             <strong>Id: <span style="color:#1a87b5;">987654321</span></strong> ← Copy dãy số này<br>
@@ -704,16 +707,14 @@
             Username: @username
           </div>
         </div>
+        <p style="margin-top:8px;font-size:13px;color:var(--text-muted);">Chỉ copy phần số (987654321), không copy @username</p>
       </div>
 
       <div class="guide-section">
-        <div class="guide-step-badge">Bước 5</div>
-        <p>Quay lại TaskFlow → <strong>Cài đặt → Telegram</strong> → dán số vào ô Chat ID → Lưu.</p>
+        <div class="guide-step-badge">Bước 4 — Điền vào TaskFlow</div>
+        <p>Quay lại TaskFlow → <strong>Cài đặt → Telegram</strong> → bật toggle → dán số vào ô Chat ID → nhấn <strong>Lưu cài đặt</strong> → nhấn <strong>Gửi thông báo thử</strong> để kiểm tra.</p>
       </div>
 
-      <div style="background:rgba(78,140,98,0.08);border-radius:10px;padding:14px;margin-top:8px;font-size:13px;color:var(--text-muted);">
-        💡 <strong>Lưu ý:</strong> Chat ID là dãy số, không phải username. Ví dụ đúng: <code>987654321</code>. Sai: <code>@username</code>
-      </div>
     </div>
     <div class="modal-footer">
       <button class="btn-save" onclick="document.getElementById('tg-guide-modal').classList.remove('open')">Đã hiểu rồi ✓</button>
