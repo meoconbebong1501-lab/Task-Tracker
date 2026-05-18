@@ -980,7 +980,7 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const DEFAULT_BOT_TOKEN = '';
 // ════════════════════════════════════════════════════════
 
-const { createClient } = supabase;
+const APP_VERSION = 'v1.2.0';
 let sb, currentUser, tasks = [], userSettings = {
   telegram_chat_id: '',
   bot_token: '',
@@ -990,26 +990,26 @@ let sb, currentUser, tasks = [], userSettings = {
 };
 let editingTaskId = null, currentView = 'kanban', calendarDate = new Date();
 
-const APP_VERSION = 'v1.2.0';
-
 // ── INIT ──────────────────────────────────────────────
-window.addEventListener('DOMContentLoaded', () => {
-  // Ẩn tất cả màn hình, chỉ để loading hiện
-  document.getElementById('auth-screen').style.display = 'none';
-  document.getElementById('setup-screen').style.display = 'none';
-  document.getElementById('app').style.display = 'none';
-
+function initApp() {
   try {
+    const { createClient } = window.supabase;
     sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       auth: {
-        persistSession: true,        // lưu session vào localStorage
-        autoRefreshToken: true,      // tự refresh token trước khi hết hạn
-        detectSessionInUrl: true,    // bắt magic link / OAuth redirect
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
       }
     });
+    window._sb = sb;
 
-    // onAuthStateChange fires ngay với session hiện tại nếu đã login trước đó
-    sb.auth.onAuthStateChange(async (event, session) => {
+    // Ẩn tất cả màn hình
+    document.getElementById('auth-screen').style.display = 'none';
+    document.getElementById('setup-screen').style.display = 'none';
+    document.getElementById('app').style.display = 'none';
+
+    // Kiểm tra session hiện tại trực tiếp thay vì dùng onAuthStateChange
+    sb.auth.getSession().then(async ({ data: { session } }) => {
       if (session?.user) {
         currentUser = session.user;
         await loadUserSettings();
@@ -1020,27 +1020,36 @@ window.addEventListener('DOMContentLoaded', () => {
           showApp();
         }
       } else {
-        currentUser = null;
         hideLoading();
+        showScreen('auth');
+      }
+    }).catch(() => {
+      hideLoading();
+      showScreen('auth');
+    });
+
+    // Vẫn giữ onAuthStateChange để bắt login/logout events
+    sb.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_OUT') {
+        currentUser = null;
+        tasks = [];
         showScreen('auth');
       }
     });
 
-    // Fallback: nếu sau 3s chưa có phản hồi (network chậm) thì vẫn hiện auth
-    setTimeout(() => {
-      const ls = document.getElementById('loading-screen');
-      if (ls && !ls.classList.contains('fade-out')) {
-        hideLoading();
-        showScreen('auth');
-      }
-    }, 3000);
-
   } catch(e) {
     hideLoading();
     showScreen('auth');
-    showToast('⚠️ Chưa cấu hình Supabase. Xem hướng dẫn trong file.', 'error', 6000);
+    showToast('⚠️ Lỗi khởi động: ' + e.message, 'error', 6000);
   }
-});
+}
+
+// Đợi cả DOM lẫn Supabase SDK load xong
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initApp);
+} else {
+  initApp();
+}
 
 function hideLoading() {
   const ls = document.getElementById('loading-screen');
