@@ -1451,6 +1451,7 @@ async function doAuth() {
 }
 
 async function logout() {
+  ['_tf_r_h1','_tf_r_m15','_tf_r_od'].forEach(k => localStorage.removeItem(k));
   await sb.auth.signOut();
   tasks = [];
 }
@@ -1689,8 +1690,12 @@ async function testAllNotifications() {
 }
 
 function scheduleDeadlineCheck() {
-  checkDeadlines();
-  setInterval(checkDeadlines, 60 * 1000);
+  // Không chạy ngay khi login — chỉ chạy theo interval mỗi phút
+  // Lần đầu check sau 60 giây, tránh spam khi mới mở app
+  setTimeout(() => {
+    checkDeadlines();
+    setInterval(checkDeadlines, 60 * 1000);
+  }, 60 * 1000);
 }
 
 // Lưu reminded vào localStorage để không bị reset giữa các lần check
