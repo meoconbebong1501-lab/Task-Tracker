@@ -511,6 +511,70 @@
     font-size: 12px; font-weight: 500;
   }
 
+  /* ── FILTER PANEL ── */
+  .btn-filter {
+    display: flex; align-items: center; gap: 6px; padding: 8px 14px;
+    background: white; border: 1px solid var(--border-strong); border-radius: 8px;
+    font-size: 13px; font-weight: 500; cursor: pointer; font-family: 'DM Sans', sans-serif;
+    color: var(--text); transition: all 0.15s; position: relative;
+  }
+  .btn-filter:hover { background: var(--cream-dark); }
+  .btn-filter.active { background: var(--forest); color: white; border-color: var(--forest); }
+  .filter-badge {
+    background: var(--amber); color: white; border-radius: 10px;
+    font-size: 10px; font-weight: 700; padding: 1px 5px; min-width: 16px; text-align: center;
+  }
+  .filter-panel {
+    background: white; border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 16px 20px; margin-bottom: 16px; box-shadow: var(--shadow);
+    transition: all 0.2s;
+  }
+  .filter-panel.hidden { display: none; }
+  .filter-panel-inner { display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start; }
+  .filter-group { display: flex; flex-direction: column; gap: 8px; }
+  .filter-group-label { font-size: 11px; font-weight: 700; color: var(--text-muted); letter-spacing: 0.06em; text-transform: uppercase; }
+  .filter-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+  .filter-chip {
+    display: flex; align-items: center; gap: 5px; padding: 5px 10px;
+    border: 1px solid var(--border-strong); border-radius: 20px; font-size: 12px;
+    cursor: pointer; transition: all 0.15s; color: var(--text); background: var(--cream);
+    user-select: none;
+  }
+  .filter-chip:has(input:checked) { background: var(--forest); color: white; border-color: var(--forest); }
+  .filter-chip input { display: none; }
+  .btn-clear-filter {
+    padding: 6px 12px; background: none; border: 1px solid var(--border-strong);
+    border-radius: 6px; font-size: 12px; color: var(--text-muted); cursor: pointer;
+    font-family: 'DM Sans', sans-serif; align-self: flex-end; margin-left: auto;
+    transition: all 0.15s;
+  }
+  .btn-clear-filter:hover { background: var(--cream-dark); color: var(--red); border-color: var(--red); }
+
+  /* ── TAGS ── */
+  .tag-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;
+    color: white; letter-spacing: 0.02em;
+  }
+  .tag-input-wrap { display: flex; gap: 8px; align-items: center; }
+  .tag-color-picker { display: flex; gap: 6px; align-items: center; flex-shrink: 0; }
+  .tag-color-dot {
+    width: 20px; height: 20px; border-radius: 50%; cursor: pointer;
+    border: 2px solid transparent; transition: all 0.15s; flex-shrink: 0;
+  }
+  .tag-color-dot.active { border-color: white; box-shadow: 0 0 0 2px var(--forest); transform: scale(1.15); }
+  .tag-color-dot:hover { transform: scale(1.1); }
+
+  /* ── DRAG & DROP ── */
+  .task-card[draggable="true"] { cursor: grab; }
+  .task-card[draggable="true"]:active { cursor: grabbing; }
+  .task-card.dragging { opacity: 0.4; transform: rotate(2deg) scale(0.98); box-shadow: none; }
+  .kanban-cards.drag-over { background: rgba(78,140,98,0.08); border-radius: 8px; outline: 2px dashed var(--sage); }
+  .drag-placeholder {
+    height: 60px; border-radius: var(--radius); border: 2px dashed var(--sage);
+    background: rgba(78,140,98,0.05); margin-bottom: 0;
+  }
+
   .hidden { display: none !important; }
 
   /* ══════════════════════════════════════
@@ -884,13 +948,38 @@
       <div class="toolbar-title" id="view-title">Kanban Board</div>
       <div class="toolbar-right">
         <input type="text" class="search-input" id="search-input" placeholder="🔍 Tìm kiếm..." oninput="renderCurrentView()">
-        <select class="filter-select" id="priority-filter" onchange="renderCurrentView()">
-          <option value="">Tất cả ưu tiên</option>
-          <option value="high">🔴 Cao</option>
-          <option value="medium">🟡 Trung bình</option>
-          <option value="low">🟢 Thấp</option>
-        </select>
+        <button class="btn-filter" id="btn-filter" onclick="toggleFilterPanel()">⚙️ Lọc <span id="filter-badge" class="filter-badge hidden">0</span></button>
         <button class="btn-add" onclick="openTaskModal()">＋ Thêm task</button>
+      </div>
+    </div>
+
+    <!-- Filter Panel -->
+    <div id="filter-panel" class="filter-panel hidden">
+      <div class="filter-panel-inner">
+        <div class="filter-group">
+          <div class="filter-group-label">Ưu tiên</div>
+          <div class="filter-chips">
+            <label class="filter-chip"><input type="checkbox" value="high" onchange="renderCurrentView()"> 🔴 Cao</label>
+            <label class="filter-chip"><input type="checkbox" value="medium" onchange="renderCurrentView()"> 🟡 TB</label>
+            <label class="filter-chip"><input type="checkbox" value="low" onchange="renderCurrentView()"> 🟢 Thấp</label>
+          </div>
+        </div>
+        <div class="filter-group">
+          <div class="filter-group-label">Tag</div>
+          <div class="filter-chips" id="filter-tag-chips">
+            <span style="font-size:12px;color:var(--text-muted);">Chưa có tag nào</span>
+          </div>
+        </div>
+        <div class="filter-group">
+          <div class="filter-group-label">Deadline</div>
+          <div class="filter-chips">
+            <label class="filter-chip"><input type="radio" name="deadline-filter" value="" onchange="renderCurrentView()" checked> Tất cả</label>
+            <label class="filter-chip"><input type="radio" name="deadline-filter" value="today" onchange="renderCurrentView()"> Hôm nay</label>
+            <label class="filter-chip"><input type="radio" name="deadline-filter" value="week" onchange="renderCurrentView()"> Tuần này</label>
+            <label class="filter-chip"><input type="radio" name="deadline-filter" value="overdue" onchange="renderCurrentView()"> Quá hạn</label>
+          </div>
+        </div>
+        <button class="btn-clear-filter" onclick="clearFilters()">✕ Xoá bộ lọc</button>
       </div>
     </div>
 
@@ -1066,6 +1155,22 @@
           <option value="low">🟢 Thấp</option>
         </select>
       </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Tag / Nhãn</label>
+      <div class="tag-input-wrap">
+        <div class="tag-color-picker" id="tag-color-picker">
+          <div class="tag-color-dot active" data-color="#4e8c62" style="background:#4e8c62" onclick="selectTagColor(this)"></div>
+          <div class="tag-color-dot" data-color="#2563eb" style="background:#2563eb" onclick="selectTagColor(this)"></div>
+          <div class="tag-color-dot" data-color="#d4843a" style="background:#d4843a" onclick="selectTagColor(this)"></div>
+          <div class="tag-color-dot" data-color="#c0392b" style="background:#c0392b" onclick="selectTagColor(this)"></div>
+          <div class="tag-color-dot" data-color="#8b5cf6" style="background:#8b5cf6" onclick="selectTagColor(this)"></div>
+          <div class="tag-color-dot" data-color="#1a87b5" style="background:#1a87b5" onclick="selectTagColor(this)"></div>
+          <div class="tag-color-dot" data-color="#1a2e22" style="background:#1a2e22" onclick="selectTagColor(this)"></div>
+        </div>
+        <input type="text" class="form-input" id="task-tag" placeholder="VD: Marketing, Dev, Cá nhân..." style="flex:1;">
+      </div>
+      <input type="hidden" id="task-tag-color" value="#4e8c62">
     </div>
     <div class="form-group">
       <label class="form-label">Deadline</label>
@@ -1676,12 +1781,76 @@ async function autoDeleteDoneTasks() {
   } catch(e) {}
 }
 
+function getActiveFilters() {
+  const priorities = [...document.querySelectorAll('.filter-chips input[type=checkbox]:checked')].map(el => el.value);
+  const deadlineFilter = document.querySelector('input[name="deadline-filter"]:checked')?.value || '';
+  const tagFilters = [...document.querySelectorAll('.filter-chips input[type=checkbox][data-type="tag"]:checked')].map(el => el.value);
+  return { priorities, deadlineFilter, tagFilters };
+}
+
+function updateFilterBadge() {
+  const { priorities, deadlineFilter, tagFilters } = getActiveFilters();
+  const count = priorities.length + (deadlineFilter ? 1 : 0) + tagFilters.length;
+  const badge = document.getElementById('filter-badge');
+  const btn = document.getElementById('btn-filter');
+  if (count > 0) {
+    badge.textContent = count; badge.classList.remove('hidden');
+    btn.classList.add('active');
+  } else {
+    badge.classList.add('hidden');
+    btn.classList.remove('active');
+  }
+}
+
+function toggleFilterPanel() {
+  const panel = document.getElementById('filter-panel');
+  panel.classList.toggle('hidden');
+  updateTagFilterChips();
+}
+
+function updateTagFilterChips() {
+  const allTags = [...new Set(tasks.filter(t => t.tag).map(t => JSON.stringify({ name: t.tag, color: t.tag_color || '#4e8c62' })))].map(s => JSON.parse(s));
+  const container = document.getElementById('filter-tag-chips');
+  if (!container) return;
+  if (allTags.length === 0) {
+    container.innerHTML = '<span style="font-size:12px;color:var(--text-muted);">Chưa có tag nào</span>';
+    return;
+  }
+  container.innerHTML = allTags.map(t => `
+    <label class="filter-chip">
+      <input type="checkbox" value="${t.name}" data-type="tag" onchange="renderCurrentView()">
+      <span class="tag-badge" style="background:${t.color}">${t.name}</span>
+    </label>`).join('');
+}
+
+function clearFilters() {
+  document.querySelectorAll('.filter-chips input[type=checkbox]').forEach(el => el.checked = false);
+  const allRadio = document.querySelector('input[name="deadline-filter"][value=""]');
+  if (allRadio) allRadio.checked = true;
+  document.getElementById('search-input').value = '';
+  updateFilterBadge();
+  renderCurrentView();
+}
+
 function filteredTasks() {
   const search = (document.getElementById('search-input')?.value || '').toLowerCase();
-  const priority = document.getElementById('priority-filter')?.value || '';
+  const { priorities, deadlineFilter, tagFilters } = getActiveFilters();
+  updateFilterBadge();
+  const now = new Date();
+  const startOfDay = new Date(now); startOfDay.setHours(0,0,0,0);
+  const endOfDay = new Date(now); endOfDay.setHours(23,59,59,999);
+  const endOfWeek = new Date(now); endOfWeek.setDate(now.getDate() + (7 - now.getDay()));
+
   return tasks.filter(t => {
-    if (search && !t.title.toLowerCase().includes(search) && !(t.description||'').toLowerCase().includes(search)) return false;
-    if (priority && t.priority !== priority) return false;
+    if (search && !t.title.toLowerCase().includes(search) && !(t.description||'').toLowerCase().includes(search) && !(t.tag||'').toLowerCase().includes(search)) return false;
+    if (priorities.length > 0 && !priorities.includes(t.priority)) return false;
+    if (tagFilters.length > 0 && !tagFilters.includes(t.tag)) return false;
+    if (deadlineFilter) {
+      const dl = t.deadline ? new Date(t.deadline) : null;
+      if (deadlineFilter === 'today' && (!dl || dl < startOfDay || dl > endOfDay)) return false;
+      if (deadlineFilter === 'week' && (!dl || dl < now || dl > endOfWeek)) return false;
+      if (deadlineFilter === 'overdue' && (!dl || dl >= now || t.status === 'done')) return false;
+    }
     return true;
   });
 }
@@ -1699,6 +1868,8 @@ async function saveTask() {
     description: document.getElementById('task-desc').value.trim(),
     status: document.getElementById('task-status').value,
     priority: document.getElementById('task-priority').value,
+    tag: document.getElementById('task-tag').value.trim() || null,
+    tag_color: document.getElementById('task-tag-color').value || '#4e8c62',
     deadline,
     updated_at: new Date().toISOString(),
   };
@@ -1762,6 +1933,12 @@ function openTaskModal(taskId) {
     document.getElementById('task-desc').value = t.description || '';
     document.getElementById('task-status').value = t.status || 'todo';
     document.getElementById('task-priority').value = t.priority || 'medium';
+    document.getElementById('task-tag').value = t.tag || '';
+    document.getElementById('task-tag-color').value = t.tag_color || '#4e8c62';
+    // Sync color picker
+    document.querySelectorAll('.tag-color-dot').forEach(dot => {
+      dot.classList.toggle('active', dot.dataset.color === (t.tag_color || '#4e8c62'));
+    });
     document.getElementById('task-deadline').value = t.deadline ? toLocalDatetimeInput(t.deadline) : '';
   } else {
     document.getElementById('modal-title').textContent = 'Thêm task mới';
@@ -1815,15 +1992,71 @@ function renderKanban() {
     const el = document.getElementById('col-' + status + '-cards');
     document.getElementById('count-' + status).textContent = groups[status].length;
     if (groups[status].length === 0) {
-      el.innerHTML = '<div class="kanban-empty">Không có task nào</div>'; return;
+      el.innerHTML = '<div class="kanban-empty">Không có task nào</div>';
+    } else {
+      el.innerHTML = groups[status].map(t => taskCard(t)).join('');
     }
-    el.innerHTML = groups[status].map(t => taskCard(t)).join('');
+    // Drag & drop events cho mỗi cột
+    el.ondragover = e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; el.classList.add('drag-over'); };
+    el.ondragleave = e => { if (!el.contains(e.relatedTarget)) el.classList.remove('drag-over'); };
+    el.ondrop = e => { e.preventDefault(); e.stopPropagation(); el.classList.remove('drag-over'); dropTask(status); };
   });
+}
+
+// ── DRAG & DROP ───────────────────────────────────────
+let _dragId = null;
+let _dragMoved = false;
+
+function dragStart(e, id) {
+  _dragId = id;
+  _dragMoved = true;
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', id);
+  const el = e.currentTarget;
+  requestAnimationFrame(() => el.classList.add('dragging'));
+}
+
+function dragEnd(e) {
+  e.currentTarget.classList.remove('dragging');
+  document.querySelectorAll('.kanban-cards').forEach(el => el.classList.remove('drag-over'));
+  // Reset sau 100ms để không block click
+  setTimeout(() => { _dragMoved = false; }, 100);
+}
+
+function cardClick(id) {
+  if (_dragMoved) return; // Vừa kéo xong, không mở modal
+  openTaskModal(id);
+}
+
+async function dropTask(newStatus) {
+  if (!_dragId) return;
+  const task = tasks.find(t => t.id === _dragId);
+  if (!task || task.status === newStatus) { _dragId = null; return; }
+  const oldStatus = task.status;
+  tasks = tasks.map(t => t.id === _dragId ? { ...t, status: newStatus, updated_at: new Date().toISOString() } : t);
+  renderKanban();
+  try {
+    await sb.from('tasks').update({ status: newStatus, updated_at: new Date().toISOString() }).eq('id', _dragId).eq('user_id', currentUser.id);
+    updateStats();
+    if (userSettings.notify_status) {
+      sendNotification('🔄 ' + task.title, `${statusLabel(oldStatus)} → ${statusLabel(newStatus)}`, `🔄 *Task chuyển trạng thái*\n📌 ${task.title}\n${statusLabel(oldStatus)} → ${statusLabel(newStatus)}`);
+    }
+    if (newStatus === 'done') _reminded.clear(_dragId);
+    showToast(`✅ Đã chuyển sang ${statusLabel(newStatus)}`);
+  } catch(err) {
+    showToast('Lỗi cập nhật task', 'error');
+    await loadTasks();
+  }
+  _dragId = null;
 }
 
 function taskCard(t) {
   const dl = deadlineBadge(t.deadline, t.status);
-  return `<div class="task-card" onclick="openTaskModal('${t.id}')">
+  const tagHtml = t.tag ? `<span class="tag-badge" style="background:${t.tag_color||'#4e8c62'}">${esc(t.tag)}</span>` : '';
+  return `<div class="task-card" draggable="true" data-id="${t.id}"
+    ondragstart="dragStart(event,'${t.id}')"
+    ondragend="dragEnd(event)"
+    onclick="cardClick('${t.id}')">
     <div class="task-card-actions">
       <button class="action-btn action-btn-edit" onclick="event.stopPropagation();openTaskModal('${t.id}')">✎</button>
       <button class="action-btn action-btn-del" onclick="event.stopPropagation();deleteTask('${t.id}')">✕</button>
@@ -1831,6 +2064,7 @@ function taskCard(t) {
     <div class="task-card-title">${esc(t.title)}</div>
     <div class="task-card-meta">
       <span class="priority-badge priority-${t.priority}">${priorityLabel(t.priority)}</span>
+      ${tagHtml}
       ${dl}
     </div>
   </div>`;
@@ -1906,6 +2140,12 @@ function updateStats() {
 }
 
 // ── HELPERS ───────────────────────────────────────────
+function selectTagColor(dot) {
+  document.querySelectorAll('.tag-color-dot').forEach(d => d.classList.remove('active'));
+  dot.classList.add('active');
+  document.getElementById('task-tag-color').value = dot.dataset.color;
+}
+
 function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
 // Convert UTC ISO string → "YYYY-MM-DDTHH:MM" theo giờ local (cho datetime-local input)
