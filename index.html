@@ -1741,12 +1741,44 @@ async function testAllNotifications() {
 }
 
 function scheduleDeadlineCheck() {
-  // Không chạy ngay khi login — chỉ chạy theo interval mỗi phút
-  // Lần đầu check sau 60 giây, tránh spam khi mới mở app
+  // Worker Cloudflare đã nhắc qua Telegram mỗi 15 phút kể cả khi tắt app
+  // App chỉ nhắc qua Browser notification (không Telegram) để tránh duplicate
   setTimeout(() => {
-    checkDeadlines();
-    setInterval(checkDeadlines, 60 * 1000);
+    checkDeadlinesBrowserOnly();
+    setInterval(checkDeadlinesBrowserOnly, 60 * 1000);
   }, 60 * 1000);
+}
+
+function checkDeadlinesBrowserOnly() {
+  // Chỉ gửi browser notification, KHÔNG gửi Telegram (Worker lo rồi)
+  if (!userSettings.notify_deadline || !userSettings.notify_push) return;
+  if (Notification.permission !== 'granted') return;
+  const now = new Date();
+  const reminded = getReminded();
+  let changed = false;
+
+  tasks.forEach(t => {
+    if (!t.deadline || t.status === 'done') return;
+    const dl = new Date(t.deadline);
+    const diff = dl - now;
+    const diffMin = diff / 60000;
+
+    if (diff < 0 && !reminded.overdue.has(t.id)) {
+      reminded.addOverdue(t.id);
+      changed = true;
+      sendBrowserNotification('🚨 Task quá hạn!', t.title);
+    }
+    if (diffMin >= 55 && diffMin <= 65 && !reminded.h1.has(t.id)) {
+      reminded.addH1(t.id);
+      changed = true;
+      sendBrowserNotification('⏰ Còn 1 tiếng', `"${t.title}" đến hạn lúc ${formatDeadline(t.deadline)}`);
+    }
+    if (diffMin >= 13 && diffMin <= 17 && !reminded.m15.has(t.id)) {
+      reminded.addM15(t.id);
+      changed = true;
+      sendBrowserNotification('🔥 Còn 15 phút!', `"${t.title}" sắp đến hạn!`);
+    }
+  });
 }
 
 // Lưu reminded vào localStorage để không bị reset giữa các lần check
