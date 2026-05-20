@@ -906,6 +906,7 @@
       <button class="nav-btn" id="nav-calendar" onclick="switchView('calendar')">Lịch</button>
       <button class="nav-btn" id="nav-list" onclick="switchView('list')">Danh sách</button>
       <button class="nav-btn" id="nav-settings" onclick="switchView('settings')">Cài đặt</button>
+      <button class="nav-btn" id="nav-admin" onclick="switchView('admin')" style="display:none;">⚙️ Admin</button>
     </div>
     <div class="topbar-right">
       <div class="user-chip">
@@ -949,6 +950,7 @@
       <div class="toolbar-right">
         <input type="text" class="search-input" id="search-input" placeholder="🔍 Tìm kiếm..." oninput="renderCurrentView()">
         <button class="btn-filter" id="btn-filter" onclick="toggleFilterPanel()">⚙️ Lọc <span id="filter-badge" class="filter-badge hidden">0</span></button>
+        <button class="btn-filter" onclick="showExportModal()">📥 Xuất</button>
         <button class="btn-add" onclick="openTaskModal()">＋ Thêm task</button>
       </div>
     </div>
@@ -1120,6 +1122,30 @@
       </div>
     </div>
 
+    <!-- Admin View -->
+    <div id="admin-view" style="display:none;"></div>
+
+  </div>
+</div>
+
+<!-- OFFLINE INDICATOR -->
+<div id="offline-bar" style="display:none;position:fixed;top:0;left:0;right:0;z-index:9998;background:#c0392b;color:white;text-align:center;padding:8px;font-size:13px;font-weight:500;">
+  ⚠️ Mất kết nối internet — các thay đổi sẽ không được lưu
+</div>
+
+<!-- EXPORT MODAL -->
+<div class="modal-overlay" id="export-modal" onclick="if(event.target===this)closeExportModal()">
+  <div class="modal" style="max-width:380px;">
+    <div class="modal-header">
+      <div class="modal-title">📥 Xuất dữ liệu</div>
+      <button class="modal-close" onclick="closeExportModal()">✕</button>
+    </div>
+    <p style="font-size:13px;color:var(--text-muted);margin-bottom:20px;">Xuất toàn bộ task của bạn ra file để backup hoặc xem trên máy tính.</p>
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <button class="btn-save" onclick="exportTasks('xlsx')" style="display:flex;align-items:center;gap:8px;justify-content:center;">📊 Xuất Excel (.xlsx)</button>
+      <button class="btn-cancel" onclick="exportTasks('csv')" style="display:flex;align-items:center;gap:8px;justify-content:center;">📄 Xuất CSV (.csv)</button>
+    </div>
+    <div style="margin-top:14px;font-size:12px;color:var(--text-muted);text-align:center;">Xuất <strong id="export-count">0</strong> tasks</div>
   </div>
 </div>
 
@@ -1172,9 +1198,20 @@
       </div>
       <input type="hidden" id="task-tag-color" value="#4e8c62">
     </div>
-    <div class="form-group">
-      <label class="form-label">Deadline</label>
-      <input type="datetime-local" class="form-input" id="task-deadline">
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Lặp lại</label>
+        <select class="form-input" id="task-repeat">
+          <option value="none">Không lặp</option>
+          <option value="daily">📅 Hàng ngày</option>
+          <option value="weekly">📆 Hàng tuần</option>
+          <option value="monthly">🗓 Hàng tháng</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Deadline</label>
+        <input type="datetime-local" class="form-input" id="task-deadline">
+      </div>
     </div>
     <div class="modal-footer">
       <button class="btn-cancel" onclick="closeTaskModal()">Huỷ</button>
@@ -1226,12 +1263,14 @@
 // ════════════════════════════════════════════════════════
 const SUPABASE_URL = 'https://aonajkvhxyaacpkpuhku.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFvbmFqa3ZoeHlhYWNwa3B1aGt1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkwNjc3NzgsImV4cCI6MjA5NDY0Mzc3OH0.FRhQs_2yik48FKvUyaKAZo5_DIjbIvUDLACbR539RZM';
-
-// Bot Telegram mặc định (có thể để trống nếu mỗi user tự nhập token)
 const DEFAULT_BOT_TOKEN = '8662657092:AAFVptvzL7-WPUYuq-cB6jjv1nsLHp0tFyE';
+
+// ── ADMIN CONFIG ─────────────────────────────────────
+// Thêm email admin của bạn vào đây
+const ADMIN_EMAILS = ['klinh.maihoang@gmail.com'];
 // ════════════════════════════════════════════════════════
 
-const APP_VERSION = 'v1.2.0';
+const APP_VERSION = 'v1.3.0';
 let sb, currentUser, tasks = [], userSettings = {
   telegram_chat_id: '',
   bot_token: '',
@@ -1385,9 +1424,13 @@ async function showApp() {
   document.getElementById('user-email-display').textContent = email.split('@')[0];
   document.getElementById('user-avatar').textContent = (email[0] || '?').toUpperCase();
   document.getElementById('settings-email-display').textContent = email;
+  // Hiện nút Admin nếu là admin
+  const adminBtn = document.getElementById('nav-admin');
+  if (adminBtn) adminBtn.style.display = isAdmin() ? 'block' : 'none';
   await loadTasks();
   switchView('kanban');
   scheduleDeadlineCheck();
+  logAnalytics('login');
 }
 
 // ── AUTH ──────────────────────────────────────────────
@@ -1417,7 +1460,22 @@ async function doAuth() {
     let res;
     if (authMode === 'login') {
       res = await sb.auth.signInWithPassword({ email, password: pass });
+      if (!res.error && res.data?.session?.user) {
+        logAnalytics('login');
+      }
     } else {
+      // ── GATE: Kiểm tra email đã mua chưa ──
+      btn.textContent = 'Đang kiểm tra...';
+      const checkRes = await fetch(`${SUPABASE_URL}/functions/v1/check-paid-email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY },
+        body: JSON.stringify({ email })
+      });
+      const checkData = await checkRes.json();
+      if (!checkData.allowed) {
+        msg.textContent = '❌ Email này chưa được kích hoạt. Vui lòng mua TaskFlow tại taskflow.com.vn';
+        btn.disabled = false; btn.textContent = 'Tạo tài khoản'; return;
+      }
       res = await sb.auth.signUp({ email, password: pass });
     }
     if (res.error) {
@@ -1426,22 +1484,16 @@ async function doAuth() {
       btn.textContent = authMode === 'login' ? 'Đăng nhập' : 'Tạo tài khoản';
       return;
     }
-    // Xử lý thủ công — không chờ onAuthStateChange
     if (authMode === 'register') {
       msg.className = 'auth-msg auth-success';
       msg.textContent = 'Đăng ký thành công!';
-      btn.disabled = false;
-      btn.textContent = 'Tạo tài khoản';
+      btn.disabled = false; btn.textContent = 'Tạo tài khoản';
     }
     if (res.data?.session?.user) {
       currentUser = res.data.session.user;
       await loadUserSettings();
       hideLoading();
-      if (!userSettings.setup_done) {
-        showScreen('setup');
-      } else {
-        showApp();
-      }
+      if (!userSettings.setup_done) { showScreen('setup'); } else { showApp(); }
     }
   } catch(e) {
     msg.textContent = 'Lỗi kết nối: ' + e.message;
@@ -1875,6 +1927,7 @@ async function saveTask() {
     priority: document.getElementById('task-priority').value,
     tag: document.getElementById('task-tag').value.trim() || null,
     tag_color: document.getElementById('task-tag-color').value || '#4e8c62',
+    repeat_type: document.getElementById('task-repeat')?.value || 'none',
     deadline,
     updated_at: new Date().toISOString(),
   };
@@ -1890,6 +1943,12 @@ async function saveTask() {
         // Nếu done thì xoá khỏi danh sách nhắc
         if (payload.status === 'done') {
           _reminded.clear(editingTaskId);
+          // Tự động tạo task tiếp theo nếu có repeat
+          const oldTask = tasks.find(t => t.id === editingTaskId);
+          if (oldTask?.repeat_type && oldTask.repeat_type !== 'none') {
+            await handleRepeatTask({ ...oldTask, ...payload });
+          }
+          logAnalytics('task_done', { task_id: editingTaskId });
         }
       }
     } else {
@@ -1901,6 +1960,7 @@ async function saveTask() {
         const body = `${priorityLabel(payload.priority)} · ${statusLabel(payload.status)}${payload.deadline ? ' · Deadline: ' + formatDeadline(payload.deadline) : ''}`;
         sendNotification('✨ Task mới: ' + title, body, `✨ *Task mới được tạo*\n📌 ${title}\n${body}`);
       }
+      logAnalytics('task_created', { title });
     }
     updateStats();
     renderCurrentView();
@@ -1940,6 +2000,7 @@ function openTaskModal(taskId) {
     document.getElementById('task-priority').value = t.priority || 'medium';
     document.getElementById('task-tag').value = t.tag || '';
     document.getElementById('task-tag-color').value = t.tag_color || '#4e8c62';
+    if (document.getElementById('task-repeat')) document.getElementById('task-repeat').value = t.repeat_type || 'none';
     // Sync color picker
     document.querySelectorAll('.tag-color-dot').forEach(dot => {
       dot.classList.toggle('active', dot.dataset.color === (t.tag_color || '#4e8c62'));
@@ -1969,16 +2030,20 @@ document.getElementById('task-modal').addEventListener('click', e => {
 // ── VIEWS ─────────────────────────────────────────────
 function switchView(view) {
   currentView = view;
-  ['kanban', 'calendar', 'list', 'settings'].forEach(v => {
-    document.getElementById(v + '-view').style.display = v === view ? 'block' : 'none';
-    document.getElementById('nav-' + v).classList.toggle('active', v === view);
+  ['kanban', 'calendar', 'list', 'settings', 'admin'].forEach(v => {
+    const el = document.getElementById(v + '-view');
+    if (el) el.style.display = v === view ? 'block' : 'none';
+    const nav = document.getElementById('nav-' + v);
+    if (nav) nav.classList.toggle('active', v === view);
   });
-  const titles = { kanban: 'Kanban Board', calendar: 'Lịch Công Việc', list: 'Danh Sách', settings: 'Cài Đặt' };
-  document.getElementById('view-title').textContent = titles[view];
-  document.getElementById('stats-bar').style.display = view === 'settings' ? 'none' : '';
+  const titles = { kanban: 'Kanban Board', calendar: 'Lịch Công Việc', list: 'Danh Sách', settings: 'Cài Đặt', admin: 'Admin' };
+  document.getElementById('view-title').textContent = titles[view] || '';
+  document.getElementById('stats-bar').style.display = (view === 'settings' || view === 'admin') ? 'none' : '';
   const toolbarRight = document.querySelector('.toolbar-right');
-  toolbarRight.style.display = view === 'settings' ? 'none' : 'flex';
-  renderCurrentView();
+  toolbarRight.style.display = (view === 'settings' || view === 'admin') ? 'none' : 'flex';
+  if (view === 'settings') loadUserSettings();
+  if (view === 'admin') renderAdmin();
+  else renderCurrentView();
 }
 
 function renderCurrentView() {
@@ -2199,6 +2264,141 @@ function showToast(msg, type = '', duration = 3500) {
     el.classList.remove('show');
     setTimeout(() => el.remove(), 400);
   }, duration);
+}
+
+// ── OFFLINE INDICATOR ─────────────────────────────────
+window.addEventListener('online',  () => { document.getElementById('offline-bar').style.display = 'none'; });
+window.addEventListener('offline', () => { document.getElementById('offline-bar').style.display = 'block'; });
+
+// ── ANALYTICS ─────────────────────────────────────────
+async function logAnalytics(event, meta = {}) {
+  if (!currentUser) return;
+  try { await sb.from('analytics').insert({ user_id: currentUser.id, event, meta }); } catch(e) {}
+}
+
+// ── EXPORT ────────────────────────────────────────────
+function showExportModal() {
+  document.getElementById('export-count').textContent = tasks.length;
+  document.getElementById('export-modal').classList.add('open');
+}
+function closeExportModal() { document.getElementById('export-modal').classList.remove('open'); }
+
+function exportTasks(format) {
+  const rows = tasks.map(t => ({
+    'Tiêu đề': t.title,
+    'Mô tả': t.description || '',
+    'Trạng thái': statusLabel(t.status),
+    'Ưu tiên': priorityLabel(t.priority),
+    'Tag': t.tag || '',
+    'Deadline': t.deadline ? formatDeadline(t.deadline) : '',
+    'Lặp lại': t.repeat_type || 'none',
+    'Ngày tạo': formatDeadline(t.created_at),
+  }));
+  if (format === 'csv') {
+    const headers = Object.keys(rows[0] || {});
+    const csv = [headers.join(','), ...rows.map(r => headers.map(h => `"${(r[h]||'').replace(/"/g,'""')}"`).join(','))].join('\n');
+    downloadBlob(new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' }), `taskflow-${Date.now()}.csv`);
+  } else {
+    const headers = Object.keys(rows[0] || {});
+    let html = '<table><tr>' + headers.map(h => `<th>${h}</th>`).join('') + '</tr>';
+    rows.forEach(r => { html += '<tr>' + headers.map(h => `<td>${r[h]||''}</td>`).join('') + '</tr>'; });
+    html += '</table>';
+    downloadBlob(new Blob([`<html><head><meta charset="UTF-8"></head><body>${html}</body></html>`], { type: 'application/vnd.ms-excel;charset=utf-8;' }), `taskflow-${Date.now()}.xls`);
+  }
+  closeExportModal();
+  showToast(`✅ Đã xuất ${tasks.length} tasks`, 'success');
+  logAnalytics('export', { format, count: tasks.length });
+}
+
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// ── REPEAT TASK ───────────────────────────────────────
+async function handleRepeatTask(task) {
+  if (!task.repeat_type || task.repeat_type === 'none' || !task.deadline) return;
+  const dl = new Date(task.deadline);
+  let next = new Date(dl);
+  if (task.repeat_type === 'daily')   next.setDate(dl.getDate() + 1);
+  if (task.repeat_type === 'weekly')  next.setDate(dl.getDate() + 7);
+  if (task.repeat_type === 'monthly') next.setMonth(dl.getMonth() + 1);
+  try {
+    const newTask = {
+      user_id: currentUser.id, title: task.title, description: task.description,
+      status: 'todo', priority: task.priority, tag: task.tag, tag_color: task.tag_color,
+      repeat_type: task.repeat_type, deadline: next.toISOString(),
+      created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+    };
+    const { data } = await sb.from('tasks').insert(newTask).select().single();
+    if (data) { tasks.unshift(data); renderCurrentView(); updateStats(); }
+    showToast(`🔄 Đã tạo task lặp lại: ${formatDeadline(next.toISOString())}`);
+  } catch(e) {}
+}
+
+// ── ADMIN ─────────────────────────────────────────────
+function isAdmin() { return currentUser && ADMIN_EMAILS.includes(currentUser.email); }
+
+async function renderAdmin() {
+  const el = document.getElementById('admin-view');
+  el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted)">Đang tải...</div>';
+  try {
+    const [{ data: aData }, { data: sData }, { data: tData }] = await Promise.all([
+      sb.from('analytics').select('event,created_at').order('created_at', { ascending: false }).limit(500),
+      sb.from('user_settings').select('user_id,telegram_chat_id,notify_telegram'),
+      sb.from('tasks').select('user_id,status,created_at'),
+    ]);
+    const totalUsers = new Set((sData||[]).map(s => s.user_id)).size;
+    const totalTasks = (tData||[]).length;
+    const doneTasks = (tData||[]).filter(t => t.status === 'done').length;
+    const tgUsers = (sData||[]).filter(s => s.telegram_chat_id && s.notify_telegram).length;
+    const d7 = new Date(); d7.setDate(d7.getDate() - 7);
+    const recentTasks = (tData||[]).filter(t => new Date(t.created_at) >= d7).length;
+    const logins = (aData||[]).filter(e => e.event === 'login').length;
+    const todayStr = new Date().toDateString();
+    const todayLogins = (aData||[]).filter(e => e.event === 'login' && new Date(e.created_at).toDateString() === todayStr).length;
+
+    el.innerHTML = `
+      <div style="max-width:900px;">
+        <h2 style="font-family:'DM Serif Display',serif;font-size:22px;margin-bottom:24px;">⚙️ Admin Dashboard</h2>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:16px;">
+          <div class="stat-card"><div class="stat-label">👥 Tổng users</div><div class="stat-value">${totalUsers}</div><div class="stat-sub">đã đăng ký</div></div>
+          <div class="stat-card"><div class="stat-label">📋 Tổng tasks</div><div class="stat-value">${totalTasks}</div><div class="stat-sub">${doneTasks} đã xong</div></div>
+          <div class="stat-card"><div class="stat-label">✈️ Dùng Telegram</div><div class="stat-value">${tgUsers}</div><div class="stat-sub">users kết nối</div></div>
+          <div class="stat-card"><div class="stat-label">📈 Tasks 7 ngày</div><div class="stat-value">${recentTasks}</div><div class="stat-sub">tasks mới</div></div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:24px;">
+          <div class="stat-card"><div class="stat-label">🔑 Tổng đăng nhập</div><div class="stat-value">${logins}</div><div class="stat-sub">lần</div></div>
+          <div class="stat-card"><div class="stat-label">🌅 Hôm nay</div><div class="stat-value">${todayLogins}</div><div class="stat-sub">lần đăng nhập</div></div>
+        </div>
+        <div class="settings-card">
+          <h3 style="font-family:'DM Serif Display',serif;font-size:18px;margin-bottom:14px;">💳 Kích hoạt tài khoản mới</h3>
+          <p style="font-size:13px;color:var(--text-muted);margin-bottom:12px;">Sau khi nhận thanh toán, chạy SQL này trong Supabase để mở quyền đăng ký:</p>
+          <div id="admin-sql-box" style="background:var(--cream-dark);border-radius:8px;padding:14px;font-family:monospace;font-size:12px;color:var(--forest);line-height:1.8;user-select:all;">INSERT INTO public.paid_users (email, note)<br>VALUES ('email@gmail.com', 'Đã thanh toán ${new Date().toLocaleDateString('vi-VN')}');</div>
+          <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap;">
+            <button class="btn-save" onclick="copyAdminSQL()">📋 Copy SQL</button>
+            <a href="https://supabase.com/dashboard/project/aonajkvhxyaacpkpuhku/editor" target="_blank" class="btn-cancel" style="text-decoration:none;display:inline-flex;align-items:center;">🔗 Mở Supabase SQL Editor</a>
+          </div>
+        </div>
+        <div class="settings-card">
+          <h3 style="font-family:'DM Serif Display',serif;font-size:18px;margin-bottom:14px;">📊 Hoạt động gần đây</h3>
+          <div style="font-size:13px;">
+            ${(aData||[]).slice(0,15).map(e => `<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border);"><span>${({'login':'🔑 Đăng nhập','task_created':'➕ Tạo task','task_done':'✅ Hoàn thành','export':'📥 Xuất file'}[e.event])||e.event}</span><span style="font-size:11px;color:var(--text-muted);">${formatDeadline(e.created_at)}</span></div>`).join('') || '<div style="padding:12px 0;color:var(--text-muted);">Chưa có dữ liệu</div>'}
+          </div>
+        </div>
+      </div>`;
+  } catch(e) {
+    el.innerHTML = `<div style="color:var(--red);padding:20px;">Lỗi: ${e.message}<br><small>Có thể do RLS analytics chưa cho phép admin đọc tất cả. Xem hướng dẫn.</small></div>`;
+  }
+}
+
+function copyAdminSQL() {
+  const sql = `INSERT INTO public.paid_users (email, note)\nVALUES ('email@gmail.com', 'Đã thanh toán ${new Date().toLocaleDateString('vi-VN')}');`;
+  navigator.clipboard.writeText(sql).then(() => showToast('✅ Đã copy SQL', 'success'));
 }
 </script>
 </body>
