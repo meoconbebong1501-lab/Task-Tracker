@@ -1466,13 +1466,12 @@ async function doAuth() {
     } else {
       // ── GATE: Kiểm tra email đã mua chưa ──
       btn.textContent = 'Đang kiểm tra...';
-      const checkRes = await fetch(`${SUPABASE_URL}/functions/v1/check-paid-email`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY },
-        body: JSON.stringify({ email })
-      });
-      const checkData = await checkRes.json();
-      if (!checkData.allowed) {
+      let allowed = false;
+      try {
+        const { data, error } = await sb.rpc('check_paid_email', { p_email: email.toLowerCase().trim() });
+        allowed = !!data && !error;
+      } catch(e) { allowed = false; }
+      if (!allowed) {
         msg.textContent = '❌ Email này chưa được kích hoạt. Vui lòng mua TaskFlow tại taskflow.com.vn';
         btn.disabled = false; btn.textContent = 'Tạo tài khoản'; return;
       }
