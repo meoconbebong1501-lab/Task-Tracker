@@ -2347,53 +2347,155 @@ async function renderAdmin() {
   const el = document.getElementById('admin-view');
   el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted)">Đang tải...</div>';
   try {
-    const [{ data: aData }, { data: sData }, { data: tData }] = await Promise.all([
-      sb.from('analytics').select('event,created_at').order('created_at', { ascending: false }).limit(500),
-      sb.from('user_settings').select('user_id,telegram_chat_id,notify_telegram'),
+    const [{ data: aData }, { data: sData }, { data: tData }, { data: authData }] = await Promise.all([
+      sb.from('analytics').select('event,created_at,user_id').order('created_at', { ascending: false }).limit(500),
+      sb.from('user_settings').select('*').order('updated_at', { ascending: false }),
       sb.from('tasks').select('user_id,status,created_at'),
+      sb.from('analytics').select('user_id,created_at').eq('event','login').order('created_at', { ascending: false }),
     ]);
-    const totalUsers = new Set((sData||[]).map(s => s.user_id)).size;
-    const totalTasks = (tData||[]).length;
-    const doneTasks = (tData||[]).filter(t => t.status === 'done').length;
-    const tgUsers = (sData||[]).filter(s => s.telegram_chat_id && s.notify_telegram).length;
-    const d7 = new Date(); d7.setDate(d7.getDate() - 7);
-    const recentTasks = (tData||[]).filter(t => new Date(t.created_at) >= d7).length;
-    const logins = (aData||[]).filter(e => e.event === 'login').length;
-    const todayStr = new Date().toDateString();
-    const todayLogins = (aData||[]).filter(e => e.event === 'login' && new Date(e.created_at).toDateString() === todayStr).length;
+
+    // Stats tổng quan
+    const totalUsers   = new Set((sData||[]).map(s => s.user_id)).size;
+    const totalTasks   = (tData||[]).length;
+    const doneTasks    = (tData||[]).filter(t => t.status === 'done').length;
+    const tgUsers      = (sData||[]).filter(s => s.telegram_chat_id && s.notify_telegram).length;
+    const d7           = new Date(); d7.setDate(d7.getDate() - 7);
+    const recentTasks  = (tData||[]).filter(t => new Date(t.created_at) >= d7).length;
+    const logins       = (aData||[]).filter(e => e.event === 'login').length;
+    const todayStr     = new Date().toDateString();
+    const todayLogins  = (aData||[]).filter(e => e.event === 'login' && new Date(e.created_at).toDateString() === todayStr).length;
+
+    // Build user list: mỗi user_id → thông tin tổng hợp
+    const userMap = {};
+    (sData||[]).forEach(s => {
+      userMap[s.user_id] = {
+        user_id: s.user_id,
+        telegram: s.telegram_chat_id ? '✅' : '—',
+        last_seen: s.updated_at,
+        setup_done: s.setup_done,
+      };
+    });
+    (tData||[]).forEach(t => {
+      if (!userMap[t.user_id]) userMap[t.user_id] = { user_id: t.user_id };
+      userMap[t.user_id].task_count = (userMap[t.user_id].task_count || 0) + 1;
+      if (t.status === 'done') userMap[t.user_id].done_count = (userMap[t.user_id].done_count || 0) + 1;
+    });
+    // Last login per user
+    (authData||[]).forEach(e => {
+      if (!userMap[e.user_id]) userMap[e.user_id] = { user_id: e.user_id };
+      if (!userMap[e.user_id].last_login) userMap[e.user_id].last_login = e.created_at;
+    });
+
+    const users = Object.values(userMap).sort((a,b) => new Date(b.last_login||0) - new Date(a.last_login||0));
 
     el.innerHTML = `
-      <div style="max-width:900px;">
-        <h2 style="font-family:'DM Serif Display',serif;font-size:22px;margin-bottom:24px;">⚙️ Admin Dashboard</h2>
-        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:16px;">
+      <div style="max-width:1000px;">
+        <h2 style="font-family:'DM Serif Display',serif;font-size:22px;margin-bottom:20px;">⚙️ Admin Dashboard</h2>
+
+        <!-- Stats -->
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:12px;">
           <div class="stat-card"><div class="stat-label">👥 Tổng users</div><div class="stat-value">${totalUsers}</div><div class="stat-sub">đã đăng ký</div></div>
           <div class="stat-card"><div class="stat-label">📋 Tổng tasks</div><div class="stat-value">${totalTasks}</div><div class="stat-sub">${doneTasks} đã xong</div></div>
           <div class="stat-card"><div class="stat-label">✈️ Dùng Telegram</div><div class="stat-value">${tgUsers}</div><div class="stat-sub">users kết nối</div></div>
           <div class="stat-card"><div class="stat-label">📈 Tasks 7 ngày</div><div class="stat-value">${recentTasks}</div><div class="stat-sub">tasks mới</div></div>
         </div>
-        <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:24px;">
+        <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:24px;">
           <div class="stat-card"><div class="stat-label">🔑 Tổng đăng nhập</div><div class="stat-value">${logins}</div><div class="stat-sub">lần</div></div>
-          <div class="stat-card"><div class="stat-label">🌅 Hôm nay</div><div class="stat-value">${todayLogins}</div><div class="stat-sub">lần đăng nhập</div></div>
+          <div class="stat-card"><div class="stat-label">🌅 Đăng nhập hôm nay</div><div class="stat-value">${todayLogins}</div><div class="stat-sub">lần</div></div>
         </div>
-        <div class="settings-card">
-          <h3 style="font-family:'DM Serif Display',serif;font-size:18px;margin-bottom:14px;">💳 Kích hoạt tài khoản mới</h3>
-          <p style="font-size:13px;color:var(--text-muted);margin-bottom:12px;">Sau khi nhận thanh toán, chạy SQL này trong Supabase để mở quyền đăng ký:</p>
-          <div id="admin-sql-box" style="background:var(--cream-dark);border-radius:8px;padding:14px;font-family:monospace;font-size:12px;color:var(--forest);line-height:1.8;user-select:all;">INSERT INTO public.paid_users (email, note)<br>VALUES ('email@gmail.com', 'Đã thanh toán ${new Date().toLocaleDateString('vi-VN')}');</div>
-          <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap;">
-            <button class="btn-save" onclick="copyAdminSQL()">📋 Copy SQL</button>
-            <a href="https://supabase.com/dashboard/project/aonajkvhxyaacpkpuhku/editor" target="_blank" class="btn-cancel" style="text-decoration:none;display:inline-flex;align-items:center;">🔗 Mở Supabase SQL Editor</a>
+
+        <!-- User Table -->
+        <div class="settings-card" style="padding:0;overflow:hidden;">
+          <div style="padding:18px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+            <h3 style="font-family:'DM Serif Display',serif;font-size:18px;">👥 Danh sách users (${users.length})</h3>
+            <div style="font-size:12px;color:var(--text-muted);">User ID lấy từ Supabase Auth</div>
+          </div>
+          <div style="overflow-x:auto;">
+            <table style="width:100%;border-collapse:collapse;font-size:13px;">
+              <thead>
+                <tr style="background:var(--cream-dark);">
+                  <th style="padding:10px 16px;text-align:left;font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:0.06em;text-transform:uppercase;white-space:nowrap;">User ID</th>
+                  <th style="padding:10px 16px;text-align:center;white-space:nowrap;font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:0.06em;text-transform:uppercase;">Tasks</th>
+                  <th style="padding:10px 16px;text-align:center;white-space:nowrap;font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:0.06em;text-transform:uppercase;">Telegram</th>
+                  <th style="padding:10px 16px;text-align:center;white-space:nowrap;font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:0.06em;text-transform:uppercase;">Setup</th>
+                  <th style="padding:10px 16px;text-align:left;white-space:nowrap;font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:0.06em;text-transform:uppercase;">Đăng nhập gần nhất</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${users.map((u, i) => `
+                  <tr style="border-top:1px solid var(--border);${i%2===0?'':'background:var(--cream);'}">
+                    <td style="padding:10px 16px;font-family:monospace;font-size:11px;color:var(--text-muted);">${u.user_id?.slice(0,16)}...</td>
+                    <td style="padding:10px 16px;text-align:center;">
+                      <span style="font-weight:600;color:var(--forest);">${u.task_count||0}</span>
+                      <span style="font-size:11px;color:var(--text-muted);"> (${u.done_count||0} done)</span>
+                    </td>
+                    <td style="padding:10px 16px;text-align:center;font-size:16px;">${u.telegram||'—'}</td>
+                    <td style="padding:10px 16px;text-align:center;">
+                      <span style="padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:${u.setup_done?'rgba(78,140,98,0.12)':'rgba(212,132,58,0.12)'};color:${u.setup_done?'var(--moss)':'var(--amber)'};">
+                        ${u.setup_done ? '✓ Xong' : '⏳ Chưa'}
+                      </span>
+                    </td>
+                    <td style="padding:10px 16px;font-size:12px;color:var(--text-muted);">${u.last_login ? formatDeadline(u.last_login) : '—'}</td>
+                  </tr>`).join('')}
+              </tbody>
+            </table>
           </div>
         </div>
-        <div class="settings-card">
+
+        <!-- Kích hoạt user mới -->
+        <div class="settings-card" style="margin-top:16px;">
+          <h3 style="font-family:'DM Serif Display',serif;font-size:18px;margin-bottom:12px;">💳 Kích hoạt tài khoản mới</h3>
+          <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap;">
+            <input type="email" id="admin-new-email" placeholder="email khách đã thanh toán..."
+              class="form-input" style="flex:1;font-size:13px;">
+            <input type="text" id="admin-new-note" placeholder="Ghi chú (VD: CK 20/05)"
+              class="form-input" style="width:180px;font-size:13px;">
+            <button class="btn-save" onclick="activateUser()">✅ Kích hoạt</button>
+          </div>
+          <div id="admin-activate-msg" style="font-size:13px;min-height:18px;"></div>
+          <div style="margin-top:14px;">
+            <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">Hoặc chạy SQL thủ công trong Supabase:</div>
+            <div style="background:var(--cream-dark);border-radius:8px;padding:12px;font-family:monospace;font-size:11px;color:var(--forest);line-height:1.8;user-select:all;">INSERT INTO public.paid_users (email, note)<br>VALUES ('email@gmail.com', 'Ghi chú');</div>
+            <div style="margin-top:10px;display:flex;gap:10px;">
+              <button class="btn-cancel" onclick="copyAdminSQL()">📋 Copy SQL</button>
+              <a href="https://supabase.com/dashboard/project/aonajkvhxyaacpkpuhku/editor" target="_blank" class="btn-cancel" style="text-decoration:none;display:inline-flex;align-items:center;">🔗 Supabase SQL Editor</a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Hoạt động gần đây -->
+        <div class="settings-card" style="margin-top:16px;">
           <h3 style="font-family:'DM Serif Display',serif;font-size:18px;margin-bottom:14px;">📊 Hoạt động gần đây</h3>
           <div style="font-size:13px;">
-            ${(aData||[]).slice(0,15).map(e => `<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border);"><span>${({'login':'🔑 Đăng nhập','task_created':'➕ Tạo task','task_done':'✅ Hoàn thành','export':'📥 Xuất file'}[e.event])||e.event}</span><span style="font-size:11px;color:var(--text-muted);">${formatDeadline(e.created_at)}</span></div>`).join('') || '<div style="padding:12px 0;color:var(--text-muted);">Chưa có dữ liệu</div>'}
+            ${(aData||[]).slice(0,20).map(e => `
+              <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border);">
+                <span>${({'login':'🔑 Đăng nhập','task_created':'➕ Tạo task','task_done':'✅ Hoàn thành task','export':'📥 Xuất file'}[e.event])||e.event}</span>
+                <div style="display:flex;gap:12px;align-items:center;">
+                  <span style="font-size:10px;color:var(--text-muted);font-family:monospace;">${e.user_id?.slice(0,8)}...</span>
+                  <span style="font-size:11px;color:var(--text-muted);">${formatDeadline(e.created_at)}</span>
+                </div>
+              </div>`).join('') || '<div style="padding:12px 0;color:var(--text-muted);">Chưa có dữ liệu</div>'}
           </div>
         </div>
       </div>`;
   } catch(e) {
-    el.innerHTML = `<div style="color:var(--red);padding:20px;">Lỗi: ${e.message}<br><small>Có thể do RLS analytics chưa cho phép admin đọc tất cả. Xem hướng dẫn.</small></div>`;
+    el.innerHTML = `<div style="color:var(--red);padding:20px;">Lỗi: ${e.message}</div>`;
   }
+}
+
+async function activateUser() {
+  const email = document.getElementById('admin-new-email').value.trim();
+  const note  = document.getElementById('admin-new-note').value.trim() || `Kích hoạt ${new Date().toLocaleDateString('vi-VN')}`;
+  const msg   = document.getElementById('admin-activate-msg');
+  if (!email) { msg.textContent = 'Vui lòng nhập email'; msg.style.color = 'var(--red)'; return; }
+  msg.textContent = 'Đang kích hoạt...'; msg.style.color = 'var(--text-muted)';
+  // Gọi Edge Function với service key — hoặc insert trực tiếp nếu admin đã login
+  // Cách đơn giản: copy SQL ra để chạy
+  const sql = `INSERT INTO public.paid_users (email, note) VALUES ('${email}', '${note}') ON CONFLICT (email) DO UPDATE SET is_active=true, note='${note}';`;
+  await navigator.clipboard.writeText(sql);
+  msg.style.color = 'var(--moss)';
+  msg.textContent = `✅ Đã copy SQL cho ${email} — dán vào Supabase SQL Editor để kích hoạt`;
+  showToast('📋 SQL đã copy — mở Supabase dán vào', 'success');
 }
 
 function copyAdminSQL() {
