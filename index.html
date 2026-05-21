@@ -1785,8 +1785,10 @@ function checkDeadlinesBrowserOnly() {
   if (!userSettings.notify_push) return;
 
   const now = new Date();
-  const reminded = getReminded();
-  let changed = false;
+  // Dùng localStorage trực tiếp thay vì gọi getReminded (tránh reference error)
+  const getSet = (key) => { try { return new Set(JSON.parse(localStorage.getItem(key)||'[]')); } catch(e) { return new Set(); } };
+  const addToSet = (key, id) => { const s=getSet(key); s.add(id); localStorage.setItem(key, JSON.stringify([...s])); };
+  const h1 = getSet('_tf_r_h1'), m15 = getSet('_tf_r_m15'), overdue = getSet('_tf_r_od');
 
   tasks.forEach(t => {
     if (!t.deadline || t.status === 'done') return;
@@ -1794,19 +1796,16 @@ function checkDeadlinesBrowserOnly() {
     const diff = dl - now;
     const diffMin = diff / 60000;
 
-    // Quá hạn
-    if (diff < 0 && diff >= -15*60000 && !reminded.overdue.has(t.id)) {
-      reminded.addOverdue(t.id); changed = true;
+    if (diff < 0 && diff >= -15*60000 && !overdue.has(t.id)) {
+      addToSet('_tf_r_od', t.id);
       sendBrowserNotification('🚨 Task quá hạn!', t.title);
     }
-    // Còn ~1 tiếng
-    if (diffMin >= 55 && diffMin <= 65 && !reminded.h1.has(t.id)) {
-      reminded.addH1(t.id); changed = true;
+    if (diffMin >= 55 && diffMin <= 65 && !h1.has(t.id)) {
+      addToSet('_tf_r_h1', t.id);
       sendBrowserNotification('⏰ Còn 1 tiếng!', `"${t.title}" đến hạn lúc ${formatDeadline(t.deadline)}`);
     }
-    // Còn ~15 phút
-    if (diffMin >= 13 && diffMin <= 17 && !reminded.m15.has(t.id)) {
-      reminded.addM15(t.id); changed = true;
+    if (diffMin >= 13 && diffMin <= 17 && !m15.has(t.id)) {
+      addToSet('_tf_r_m15', t.id);
       sendBrowserNotification('🔥 Còn 15 phút!', `"${t.title}" sắp đến hạn!`);
     }
   });
