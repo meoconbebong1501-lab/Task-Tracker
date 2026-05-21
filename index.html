@@ -2305,9 +2305,11 @@ function renderCalendar() {
   const tasksByDate = {};
   tasks.forEach(t => {
     if (!t.deadline) return;
-    const d = t.deadline.slice(0,10);
-    if (!tasksByDate[d]) tasksByDate[d] = [];
-    tasksByDate[d].push(t);
+    // Convert UTC sang local timezone trước khi lấy ngày
+    const localDate = new Date(t.deadline);
+    const key = `${localDate.getFullYear()}-${String(localDate.getMonth()+1).padStart(2,'0')}-${String(localDate.getDate()).padStart(2,'0')}`;
+    if (!tasksByDate[key]) tasksByDate[key] = [];
+    tasksByDate[key].push(t);
   });
   const days = ['T2','T3','T4','T5','T6','T7','CN'];
   let html = days.map(d => `<div class="cal-dow">${d}</div>`).join('');
