@@ -1934,7 +1934,7 @@ async function autoDeleteDoneTasks() {
 }
 
 function getActiveFilters() {
-  const priorities = [...document.querySelectorAll('.filter-chips input[type=checkbox]:checked')].map(el => el.value);
+  const priorities = [...document.querySelectorAll('.filter-chips input[type=checkbox]:not([data-type="tag"]):checked')].map(el => el.value);
   const deadlineFilter = document.querySelector('input[name="deadline-filter"]:checked')?.value || '';
   const tagFilters = [...document.querySelectorAll('.filter-chips input[type=checkbox][data-type="tag"]:checked')].map(el => el.value);
   return { priorities, deadlineFilter, tagFilters };
