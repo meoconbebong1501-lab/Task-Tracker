@@ -192,6 +192,14 @@
     transition: background 0.18s;
   }
   .btn-logout:hover { background: rgba(255,255,255,0.18); }
+  .btn-zalo-support {
+    display: flex; align-items: center; gap: 5px;
+    padding: 5px 12px; background: #0068ff; color: white;
+    border-radius: 6px; font-size: 12px; font-weight: 500;
+    text-decoration: none; transition: background 0.15s; white-space: nowrap;
+    font-family: 'DM Sans', sans-serif;
+  }
+  .btn-zalo-support:hover { background: #0052cc; }
 
   /* ── CONTENT ── */
   .content { flex: 1; padding: 28px 28px 48px; }
@@ -909,6 +917,9 @@
       <button class="nav-btn" id="nav-admin" onclick="switchView('admin')" style="display:none;">⚙️ Admin</button>
     </div>
     <div class="topbar-right">
+      <a href="https://zalo.me/0984697879" target="_blank" class="btn-zalo-support" title="Chat Zalo hỗ trợ">
+        💬 Hỗ trợ
+      </a>
       <div class="user-chip">
         <div class="user-avatar" id="user-avatar">?</div>
         <span id="user-email-display"></span>
@@ -1490,6 +1501,10 @@ async function doAuth() {
     }
     if (res.data?.session?.user) {
       currentUser = res.data.session.user;
+      // Thông báo admin khi có user mới đăng ký
+      if (authMode === 'register') {
+        notifyAdminNewUser(email);
+      }
       await loadUserSettings();
       hideLoading();
       if (!userSettings.setup_done) { showScreen('setup'); } else { showApp(); }
@@ -2297,7 +2312,26 @@ function showToast(msg, type = '', duration = 3500) {
   }, duration);
 }
 
-// ── OFFLINE INDICATOR ─────────────────────────────────
+// ── NOTIFY ADMIN NEW USER ─────────────────────────────
+async function notifyAdminNewUser(email) {
+  const token = DEFAULT_BOT_TOKEN;
+  const adminChatId = '5691936820'; // Chat ID của bạn
+  if (!token || !adminChatId) return;
+  const now = new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
+  try {
+    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: adminChatId,
+        text: `🎉 *User mới đăng ký TaskFlow!*\n\n📧 Email: \`${email}\`\n🕐 Thời gian: ${now}\n\n👉 Nhớ kích hoạt tài khoản trong Admin panel.`,
+        parse_mode: 'Markdown'
+      })
+    });
+  } catch(e) {}
+}
+
+
 window.addEventListener('online',  () => { document.getElementById('offline-bar').style.display = 'none'; });
 window.addEventListener('offline', () => { document.getElementById('offline-bar').style.display = 'block'; });
 
