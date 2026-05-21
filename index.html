@@ -1367,33 +1367,56 @@ function initApp() {
     document.getElementById('setup-screen').style.display = 'none';
     document.getElementById('app').style.display = 'none';
 
-    // Kiểm tra session hiện tại trực tiếp thay vì dùng onAuthStateChange
+    // Bắt PASSWORD_RECOVERY từ URL hash TRƯỚC KHI làm gì khác
+    const hash = window.location.hash;
+    if (hash.includes('type=recovery') || hash.includes('type=signup')) {
+      // Supabase sẽ tự parse hash và trigger onAuthStateChange
+      sb.auth.onAuthStateChange(async (event, session) => {
+        if (event === 'PASSWORD_RECOVERY') {
+          hideLoading();
+          showResetScreen();
+          return;
+        }
+        if (event === 'SIGNED_IN' && hash.includes('type=recovery')) {
+          hideLoading();
+          showResetScreen();
+          return;
+        }
+        if (event === 'SIGNED_OUT') {
+          currentUser = null; tasks = [];
+          showScreen('auth');
+        }
+      });
+      // Fallback: nếu sau 2s vẫn chưa detect được thì show reset screen
+      setTimeout(() => {
+        const rs = document.getElementById('reset-screen');
+        if (rs && rs.style.display === 'none') {
+          hideLoading();
+          showResetScreen();
+        }
+      }, 2000);
+      return;
+    }
+
+    // Flow bình thường
     sb.auth.getSession().then(async ({ data: { session } }) => {
       if (session?.user) {
         currentUser = session.user;
         await loadUserSettings();
         hideLoading();
-        if (!userSettings.setup_done) {
-          showScreen('setup');
-        } else {
-          showApp();
-        }
+        if (!userSettings.setup_done) { showScreen('setup'); } else { showApp(); }
       } else {
         hideLoading();
         showScreen('auth');
       }
-    }).catch(() => {
-      hideLoading();
-      showScreen('auth');
-    });
+    }).catch(() => { hideLoading(); showScreen('auth'); });
 
-    // Vẫn giữ onAuthStateChange để bắt login/logout events
     sb.auth.onAuthStateChange(async (event, session) => {
       if (event === 'PASSWORD_RECOVERY') {
-        showResetScreen();
+        hideLoading(); showResetScreen();
       } else if (event === 'SIGNED_OUT') {
-        currentUser = null;
-        tasks = [];
+        currentUser = null; tasks = [];
+        ['_tf_r_h1','_tf_r_m15','_tf_r_od'].forEach(k => localStorage.removeItem(k));
         showScreen('auth');
       }
     });
