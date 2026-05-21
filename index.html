@@ -574,14 +574,12 @@
   .tag-color-dot:hover { transform: scale(1.1); }
 
   /* ── DRAG & DROP ── */
-  .task-card[draggable="true"] { cursor: grab; }
+  .task-card[draggable="true"] { cursor: grab; -webkit-user-select: none; user-select: none; }
   .task-card[draggable="true"]:active { cursor: grabbing; }
   .task-card.dragging { opacity: 0.4; transform: rotate(2deg) scale(0.98); box-shadow: none; }
   .kanban-cards.drag-over { background: rgba(78,140,98,0.08); border-radius: 8px; outline: 2px dashed var(--sage); }
-  .drag-placeholder {
-    height: 60px; border-radius: var(--radius); border: 2px dashed var(--sage);
-    background: rgba(78,140,98,0.05); margin-bottom: 0;
-  }
+  /* Tắt scroll dọc khi đang kéo trên mobile */
+  body.touch-dragging { overflow: hidden; touch-action: none; }
 
   .hidden { display: none !important; }
 
@@ -2082,10 +2080,14 @@ function renderKanban() {
   });
 }
 
-// ── DRAG & DROP ───────────────────────────────────────
+// ── DRAG & DROP (Desktop + Mobile Touch) ──────────────
 let _dragId = null;
 let _dragMoved = false;
+let _touchClone = null;
+let _touchOffsetX = 0;
+let _touchOffsetY = 0;
 
+// ── Desktop drag ──
 function dragStart(e, id) {
   _dragId = id;
   _dragMoved = true;
@@ -2098,13 +2100,97 @@ function dragStart(e, id) {
 function dragEnd(e) {
   e.currentTarget.classList.remove('dragging');
   document.querySelectorAll('.kanban-cards').forEach(el => el.classList.remove('drag-over'));
-  // Reset sau 100ms để không block click
   setTimeout(() => { _dragMoved = false; }, 100);
 }
 
 function cardClick(id) {
-  if (_dragMoved) return; // Vừa kéo xong, không mở modal
+  if (_dragMoved) return;
   openTaskModal(id);
+}
+
+// ── Mobile touch drag ──
+function touchStart(e, id) {
+  if (e.touches.length > 1) return;
+  _dragId = id;
+  _dragMoved = false;
+
+  const card = e.currentTarget;
+  const rect = card.getBoundingClientRect();
+  const touch = e.touches[0];
+  _touchOffsetX = touch.clientX - rect.left;
+  _touchOffsetY = touch.clientY - rect.top;
+
+  // Delay nhỏ để phân biệt tap và drag
+  setTimeout(() => {
+    if (!_dragId) return;
+    document.body.classList.add('touch-dragging');
+    _touchClone = card.cloneNode(true);
+    _touchClone.style.cssText = `
+      position: fixed;
+      width: ${rect.width}px;
+      left: ${rect.left}px;
+      top: ${rect.top}px;
+      z-index: 9999;
+      opacity: 0.85;
+      pointer-events: none;
+      transform: scale(1.03) rotate(1deg);
+      box-shadow: 0 12px 40px rgba(26,46,34,0.25);
+      transition: none;
+    `;
+    document.body.appendChild(_touchClone);
+    card.style.opacity = '0.3';
+  }, 150);
+}
+
+function touchMove(e) {
+  if (!_dragId || !_touchClone) return;
+  e.preventDefault();
+  _dragMoved = true;
+  const touch = e.touches[0];
+
+  // Di chuyển ghost
+  _touchClone.style.left = (touch.clientX - _touchOffsetX) + 'px';
+  _touchClone.style.top  = (touch.clientY - _touchOffsetY) + 'px';
+
+  // Highlight cột đang hover
+  _touchClone.style.display = 'none';
+  const elBelow = document.elementFromPoint(touch.clientX, touch.clientY);
+  _touchClone.style.display = '';
+  document.querySelectorAll('.kanban-cards').forEach(col => col.classList.remove('drag-over'));
+  const targetCol = elBelow?.closest('.kanban-cards');
+  if (targetCol) targetCol.classList.add('drag-over');
+}
+
+async function touchEnd(e) {
+  if (!_dragId) return;
+  document.body.classList.remove('touch-dragging');
+
+  // Xoá ghost
+  if (_touchClone) { _touchClone.remove(); _touchClone = null; }
+  document.querySelectorAll('.task-card').forEach(c => c.style.opacity = '');
+  document.querySelectorAll('.kanban-cards').forEach(col => col.classList.remove('drag-over'));
+
+  if (!_dragMoved) {
+    // Tap nhẹ → mở modal
+    setTimeout(() => { _dragMoved = false; openTaskModal(_dragId); _dragId = null; }, 50);
+    return;
+  }
+
+  // Tìm cột đích
+  const touch = e.changedTouches[0];
+  _touchClone && (_touchClone.style.display = 'none');
+  const elBelow = document.elementFromPoint(touch.clientX, touch.clientY);
+  const targetCol = elBelow?.closest('.kanban-cards');
+
+  if (targetCol) {
+    const colId = targetCol.id; // col-todo-cards, col-inprogress-cards, col-done-cards
+    const statusMap = { 'col-todo-cards': 'todo', 'col-inprogress-cards': 'inprogress', 'col-done-cards': 'done' };
+    const newStatus = statusMap[colId];
+    if (newStatus) await dropTask(newStatus);
+  }
+
+  _dragId = null;
+  setTimeout(() => { _dragMoved = false; }, 100);
 }
 
 async function dropTask(newStatus) {
@@ -2135,6 +2221,9 @@ function taskCard(t) {
   return `<div class="task-card" draggable="true" data-id="${t.id}"
     ondragstart="dragStart(event,'${t.id}')"
     ondragend="dragEnd(event)"
+    ontouchstart="touchStart(event,'${t.id}')"
+    ontouchmove="touchMove(event)"
+    ontouchend="touchEnd(event)"
     onclick="cardClick('${t.id}')">
     <div class="task-card-actions">
       <button class="action-btn action-btn-edit" onclick="event.stopPropagation();openTaskModal('${t.id}')">✎</button>
