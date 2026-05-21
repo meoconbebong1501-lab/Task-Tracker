@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#1a2e22">
-<title>TaskFlow v1.2.0 — Quản lý công việc</title>
+<title>TaskFlow v1.3.0 — Quản lý công việc</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -908,7 +908,7 @@
 <div id="app">
   <!-- Topbar -->
   <div class="topbar">
-    <div class="topbar-logo">Task<span>Flow</span> <span style="font-size:10px;opacity:0.4;font-family:'DM Sans',sans-serif;font-weight:400;letter-spacing:0.04em;">v1.2.0</span></div>
+    <div class="topbar-logo">Task<span>Flow</span> <span style="font-size:10px;opacity:0.4;font-family:'DM Sans',sans-serif;font-weight:400;letter-spacing:0.04em;">v1.3.0</span></div>
     <div class="topbar-nav">
       <button class="nav-btn active" id="nav-kanban" onclick="switchView('kanban')">Kanban</button>
       <button class="nav-btn" id="nav-calendar" onclick="switchView('calendar')">Lịch</button>
@@ -1812,45 +1812,8 @@ const _reminded = {
 };
 
 function checkDeadlines() {
-  if (!userSettings.notify_deadline) return;
-  const now = new Date();
-
-  tasks.forEach(t => {
-    if (!t.deadline || t.status === 'done') return;
-    const dl = new Date(t.deadline);
-    const diff = dl - now;
-
-    // Quá hạn
-    if (diff < 0 && !_reminded.overdue.has(t.id)) {
-      _reminded.addOverdue(t.id);
-      sendNotification(
-        '🚨 Task quá hạn',
-        t.title,
-        `🚨 *Task quá hạn rồi!*\n📌 ${t.title}\nDeadline: ${formatDeadline(t.deadline)}`
-      );
-      return;
-    }
-
-    // Còn ~1 tiếng (55–65 phút)
-    if (diff >= 55*60*1000 && diff <= 65*60*1000 && !_reminded.h1.has(t.id)) {
-      _reminded.addH1(t.id);
-      sendNotification(
-        '⏰ Còn 1 tiếng',
-        `"${t.title}" đến hạn lúc ${formatDeadline(t.deadline)}`,
-        `⏰ *Còn 1 tiếng nữa đến deadline!*\n📌 ${t.title}\n🕐 ${formatDeadline(t.deadline)}`
-      );
-    }
-
-    // Còn ~15 phút (13–17 phút)
-    if (diff >= 13*60*1000 && diff <= 17*60*1000 && !_reminded.m15.has(t.id)) {
-      _reminded.addM15(t.id);
-      sendNotification(
-        '🔥 Còn 15 phút!',
-        `"${t.title}" sắp đến hạn!`,
-        `🔥 *Chỉ còn 15 phút!*\n📌 ${t.title}\n🕐 ${formatDeadline(t.deadline)}\n\nNhanh lên nào! 💪`
-      );
-    }
-  });
+  // Telegram đã được Worker xử lý — hàm này chỉ còn để tương thích
+  // Browser notification được xử lý bởi checkDeadlinesBrowserOnly()
 }
 
 // ── TASKS ─────────────────────────────────────────────
