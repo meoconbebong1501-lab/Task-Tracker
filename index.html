@@ -1193,7 +1193,17 @@
           <div class="tag-color-dot" data-color="#1a87b5" style="background:#1a87b5" onclick="selectTagColor(this)"></div>
           <div class="tag-color-dot" data-color="#1a2e22" style="background:#1a2e22" onclick="selectTagColor(this)"></div>
         </div>
-        <input type="text" class="form-input" id="task-tag" placeholder="VD: Marketing, Dev, Cá nhân..." style="flex:1;">
+        <div style="flex:1;position:relative;">
+          <input type="text" class="form-input" id="task-tag"
+            placeholder="Nhập tag hoặc chọn tag cũ..."
+            style="width:100%;"
+            oninput="filterTagSuggestions(this.value)"
+            onfocus="showTagSuggestions()"
+            onblur="setTimeout(hideTagSuggestions,200)"
+            autocomplete="off">
+          <div id="tag-preview" style="display:none;position:absolute;right:10px;top:50%;transform:translateY(-50%);"></div>
+          <div id="tag-suggestions" style="display:none;position:absolute;top:100%;left:0;right:0;background:white;border:1px solid var(--border);border-radius:8px;box-shadow:var(--shadow);z-index:100;max-height:160px;overflow-y:auto;margin-top:4px;"></div>
+        </div>
       </div>
       <input type="hidden" id="task-tag-color" value="#4e8c62">
     </div>
@@ -2030,6 +2040,7 @@ function openTaskModal(taskId) {
       dot.classList.toggle('active', dot.dataset.color === (t.tag_color || '#4e8c62'));
     });
     document.getElementById('task-deadline').value = t.deadline ? toLocalDatetimeInput(t.deadline) : '';
+    updateTagPreview();
   } else {
     document.getElementById('modal-title').textContent = 'Thêm task mới';
     document.getElementById('task-title').value = '';
@@ -2037,6 +2048,12 @@ function openTaskModal(taskId) {
     document.getElementById('task-status').value = 'todo';
     document.getElementById('task-priority').value = 'medium';
     document.getElementById('task-deadline').value = '';
+    document.getElementById('task-tag').value = '';
+    document.getElementById('task-tag-color').value = '#4e8c62';
+    if (document.getElementById('task-repeat')) document.getElementById('task-repeat').value = 'none';
+    document.querySelectorAll('.tag-color-dot').forEach((d,i) => d.classList.toggle('active', i===0));
+    const preview = document.getElementById('tag-preview');
+    if (preview) preview.style.display = 'none';
   }
   modal.classList.add('open');
   setTimeout(() => document.getElementById('task-title').focus(), 100);
@@ -2328,7 +2345,75 @@ function updateStats() {
 function selectTagColor(dot) {
   document.querySelectorAll('.tag-color-dot').forEach(d => d.classList.remove('active'));
   dot.classList.add('active');
-  document.getElementById('task-tag-color').value = dot.dataset.color;
+  const color = dot.dataset.color;
+  document.getElementById('task-tag-color').value = color;
+  // Cập nhật preview badge
+  updateTagPreview();
+}
+
+function updateTagPreview() {
+  const tagName = document.getElementById('task-tag')?.value.trim();
+  const color = document.getElementById('task-tag-color')?.value || '#4e8c62';
+  const preview = document.getElementById('tag-preview');
+  if (!preview) return;
+  if (tagName) {
+    preview.style.display = 'block';
+    preview.innerHTML = `<span class="tag-badge" style="background:${color};font-size:10px;padding:1px 6px;">${esc(tagName)}</span>`;
+  } else {
+    preview.style.display = 'none';
+  }
+}
+
+// Lấy danh sách tag đã dùng từ tasks (có màu kèm theo)
+function getSavedTags() {
+  const tagMap = {};
+  tasks.forEach(t => {
+    if (t.tag) tagMap[t.tag] = t.tag_color || '#4e8c62';
+  });
+  return Object.entries(tagMap).map(([name, color]) => ({ name, color }));
+}
+
+function showTagSuggestions() {
+  filterTagSuggestions(document.getElementById('task-tag').value);
+}
+
+function filterTagSuggestions(val) {
+  updateTagPreview();
+  const box = document.getElementById('tag-suggestions');
+  const savedTags = getSavedTags();
+  const filtered = val
+    ? savedTags.filter(t => t.name.toLowerCase().includes(val.toLowerCase()))
+    : savedTags;
+  if (filtered.length === 0) { box.style.display = 'none'; return; }
+  box.style.display = 'block';
+  box.innerHTML = filtered.map(t => `
+    <div onclick="selectTag('${esc(t.name)}','${t.color}')"
+      style="display:flex;align-items:center;gap:8px;padding:8px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--border);"
+      onmouseover="this.style.background='var(--cream-dark)'"
+      onmouseout="this.style.background=''">
+      <span class="tag-badge" style="background:${t.color}">${esc(t.name)}</span>
+    </div>`).join('');
+}
+
+function selectTag(name, color) {
+  document.getElementById('task-tag').value = name;
+  document.getElementById('task-tag-color').value = color;
+  // Sync color picker
+  let found = false;
+  document.querySelectorAll('.tag-color-dot').forEach(dot => {
+    const match = dot.dataset.color === color;
+    dot.classList.toggle('active', match);
+    if (match) found = true;
+  });
+  // Nếu màu không có trong picker, bỏ active hết
+  if (!found) document.querySelectorAll('.tag-color-dot').forEach(d => d.classList.remove('active'));
+  hideTagSuggestions();
+  updateTagPreview();
+}
+
+function hideTagSuggestions() {
+  const box = document.getElementById('tag-suggestions');
+  if (box) box.style.display = 'none';
 }
 
 function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
