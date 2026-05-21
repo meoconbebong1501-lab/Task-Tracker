@@ -1051,19 +1051,9 @@
           <div class="notif-channel-icon" style="background:rgba(37,99,235,0.1);color:#2563eb;">🖥️</div>
           <div style="flex:1;">
             <div class="settings-row-label">Trình duyệt &amp; điện thoại</div>
-            <div class="settings-row-sub" id="push-status-text">Popup ngay trên màn hình — không cần cài app gì thêm</div>
+            <div class="settings-row-sub" id="push-status-text">Popup ngay trên màn hình khi có deadline — không cần cài app thêm</div>
           </div>
           <button class="btn-channel" id="btn-push" onclick="setupBrowserPush()">Bật ngay</button>
-        </div>
-
-        <!-- Email -->
-        <div class="notif-channel-row">
-          <div class="notif-channel-icon" style="background:rgba(78,140,98,0.12);color:var(--moss);">✉️</div>
-          <div style="flex:1;">
-            <div class="settings-row-label">Email</div>
-            <div class="settings-row-sub">Gửi vào hòm thư <span id="settings-email-inline" style="font-weight:500;color:var(--text);"></span></div>
-          </div>
-          <div class="toggle on" id="toggle-email" onclick="toggleSetting('notify_email')"></div>
         </div>
 
         <!-- Telegram -->
@@ -1618,6 +1608,12 @@ async function loadUserSettings() {
     if (emailInline) emailInline.textContent = email;
     const emailDisplay = document.getElementById('settings-email-display');
     if (emailDisplay) emailDisplay.textContent = email;
+    // Sync push state với browser permission thực tế
+    if ('Notification' in window && Notification.permission === 'granted') {
+      userSettings.notify_push = true;
+    } else if (Notification.permission !== 'granted') {
+      userSettings.notify_push = false;
+    }
     updatePushButtonState();
   } catch(e) {
     // Bỏ qua lỗi, dùng default settings
@@ -1640,14 +1636,13 @@ async function saveSettings() {
   userSettings.notify_new = document.getElementById('toggle-new').classList.contains('on');
   userSettings.notify_status = document.getElementById('toggle-status').classList.contains('on');
   userSettings.notify_deadline = document.getElementById('toggle-deadline').classList.contains('on');
-  userSettings.notify_email = document.getElementById('toggle-email').classList.contains('on');
   userSettings.notify_telegram = document.getElementById('toggle-telegram').classList.contains('on');
   await saveUserSettings();
   showToast('✅ Đã lưu cài đặt', 'success');
 }
 
 function toggleSetting(key) {
-  const idMap = { notify_new: 'toggle-new', notify_status: 'toggle-status', notify_deadline: 'toggle-deadline', notify_email: 'toggle-email', notify_telegram: 'toggle-telegram' };
+  const idMap = { notify_new: 'toggle-new', notify_status: 'toggle-status', notify_deadline: 'toggle-deadline', notify_telegram: 'toggle-telegram' };
   const el = document.getElementById(idMap[key]);
   if (el) el.classList.toggle('on');
 }
@@ -1672,39 +1667,62 @@ function updatePushButtonState() {
   const txt = document.getElementById('push-status-text');
   if (!btn || !txt) return;
   if (!('Notification' in window)) {
-    btn.textContent = 'Không hỗ trợ'; btn.className = 'btn-channel blocked'; return;
+    btn.textContent = 'Không hỗ trợ'; btn.className = 'btn-channel blocked';
+    txt.textContent = 'Trình duyệt này không hỗ trợ thông báo'; return;
   }
   if (Notification.permission === 'granted') {
     btn.textContent = '✓ Đã bật'; btn.className = 'btn-channel active';
-    txt.textContent = 'Đang hoạt động — bạn sẽ nhận popup ngay trên màn hình';
+    txt.textContent = 'Đang hoạt động — sẽ nhận popup khi deadline sắp đến';
     userSettings.notify_push = true;
   } else if (Notification.permission === 'denied') {
     btn.textContent = 'Đã bị chặn'; btn.className = 'btn-channel blocked';
-    txt.textContent = 'Bị chặn — vào Settings trình duyệt → Site permissions để bật lại';
+    txt.innerHTML = 'Bị chặn bởi trình duyệt — <strong>vào Settings → Site permissions → Notifications</strong> để bật lại';
   } else {
     btn.textContent = 'Bật ngay'; btn.className = 'btn-channel';
-    txt.textContent = 'Popup trực tiếp trên màn hình — không cần cài app gì thêm';
+    txt.textContent = 'Popup ngay trên màn hình khi có deadline — không cần cài app thêm';
+    userSettings.notify_push = false;
   }
 }
 
 async function setupBrowserPush() {
-  if (!('Notification' in window)) { showToast('Trình duyệt không hỗ trợ thông báo', 'error'); return; }
-  if (Notification.permission === 'denied') { showToast('Bị chặn — vào Settings trình duyệt để bật lại', 'error'); return; }
+  if (!('Notification' in window)) {
+    showToast('Trình duyệt không hỗ trợ thông báo', 'error'); return;
+  }
+  if (Notification.permission === 'denied') {
+    showToast('Thông báo đang bị chặn — vào Settings trình duyệt để bật lại', 'error'); return;
+  }
   const permission = await Notification.requestPermission();
-  updatePushButtonState();
   if (permission === 'granted') {
     userSettings.notify_push = true;
     await saveUserSettings();
-    sendBrowserNotification('🎉 TaskFlow', 'Thông báo trình duyệt đã được bật!');
+    updatePushButtonState();
+    // Test notification ngay lập tức
+    setTimeout(() => {
+      sendBrowserNotification('✅ TaskFlow', 'Thông báo trình duyệt đã bật! Bạn sẽ nhận nhắc nhở deadline tại đây.');
+    }, 500);
     showToast('✅ Đã bật thông báo trình duyệt', 'success');
+    // Bắt đầu check deadline ngay
+    checkDeadlinesBrowserOnly();
   } else {
+    updatePushButtonState();
     showToast('Bạn đã từ chối thông báo', 'error');
   }
 }
 
 function sendBrowserNotification(title, body) {
   if (!('Notification' in window) || Notification.permission !== 'granted') return;
-  try { new Notification(title, { body }); } catch(e) {}
+  try {
+    const n = new Notification(title, {
+      body,
+      icon: 'https://img.icons8.com/color/48/todo-list.png',
+      badge: 'https://img.icons8.com/color/48/todo-list.png',
+      tag: 'taskflow-' + Date.now(),
+    });
+    // Tự đóng sau 8 giây
+    setTimeout(() => n.close(), 8000);
+    // Click vào notification → focus app
+    n.onclick = () => { window.focus(); n.close(); };
+  } catch(e) {}
 }
 
 // ── EMAIL NOTIFICATION ─────────────────────────────────
@@ -1754,18 +1772,18 @@ async function testAllNotifications() {
 }
 
 function scheduleDeadlineCheck() {
-  // Worker Cloudflare đã nhắc qua Telegram mỗi 15 phút kể cả khi tắt app
-  // App chỉ nhắc qua Browser notification (không Telegram) để tránh duplicate
+  // Chạy lần đầu sau 30 giây, sau đó mỗi phút
   setTimeout(() => {
     checkDeadlinesBrowserOnly();
     setInterval(checkDeadlinesBrowserOnly, 60 * 1000);
-  }, 60 * 1000);
+  }, 30 * 1000);
 }
 
 function checkDeadlinesBrowserOnly() {
-  // Chỉ gửi browser notification, KHÔNG gửi Telegram (Worker lo rồi)
-  if (!userSettings.notify_deadline || !userSettings.notify_push) return;
-  if (Notification.permission !== 'granted') return;
+  if (!userSettings.notify_deadline) return;
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  if (!userSettings.notify_push) return;
+
   const now = new Date();
   const reminded = getReminded();
   let changed = false;
@@ -1776,19 +1794,19 @@ function checkDeadlinesBrowserOnly() {
     const diff = dl - now;
     const diffMin = diff / 60000;
 
-    if (diff < 0 && !reminded.overdue.has(t.id)) {
-      reminded.addOverdue(t.id);
-      changed = true;
+    // Quá hạn
+    if (diff < 0 && diff >= -15*60000 && !reminded.overdue.has(t.id)) {
+      reminded.addOverdue(t.id); changed = true;
       sendBrowserNotification('🚨 Task quá hạn!', t.title);
     }
+    // Còn ~1 tiếng
     if (diffMin >= 55 && diffMin <= 65 && !reminded.h1.has(t.id)) {
-      reminded.addH1(t.id);
-      changed = true;
-      sendBrowserNotification('⏰ Còn 1 tiếng', `"${t.title}" đến hạn lúc ${formatDeadline(t.deadline)}`);
+      reminded.addH1(t.id); changed = true;
+      sendBrowserNotification('⏰ Còn 1 tiếng!', `"${t.title}" đến hạn lúc ${formatDeadline(t.deadline)}`);
     }
+    // Còn ~15 phút
     if (diffMin >= 13 && diffMin <= 17 && !reminded.m15.has(t.id)) {
-      reminded.addM15(t.id);
-      changed = true;
+      reminded.addM15(t.id); changed = true;
       sendBrowserNotification('🔥 Còn 15 phút!', `"${t.title}" sắp đến hạn!`);
     }
   });
