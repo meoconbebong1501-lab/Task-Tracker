@@ -118,6 +118,18 @@
   }
   .auth-tab.active { background: var(--forest); color: white; }
   .auth-form { display: flex; flex-direction: column; gap: 14px; }
+  .pass-wrap {
+    position: relative; display: flex; align-items: center;
+  }
+  .pass-wrap input { flex: 1; padding-right: 40px !important; }
+  .eye-btn {
+    position: absolute; right: 10px; background: none; border: none;
+    cursor: pointer; font-size: 16px; color: var(--text-muted);
+    padding: 4px; line-height: 1; opacity: 0.6; transition: opacity 0.15s;
+  }
+  .eye-btn:hover { opacity: 1; }
+  .eye-btn.active { opacity: 1; }
+
   .auth-form input {
     padding: 11px 14px; border: 1px solid var(--border-strong); border-radius: 8px;
     font-size: 14px; font-family: 'DM Sans', sans-serif; background: white; color: var(--text);
@@ -701,7 +713,7 @@
 <!-- ═══════════════ LOADING SCREEN ═══════════════ -->
 <div id="loading-screen">
   <div class="loading-logo">Task<span>Flow</span></div>
-  <div class="loading-version">v1.2.0</div>
+  <div class="loading-version">v1.3.0</div>
   <div class="loading-dots">
     <div class="loading-dot"></div>
     <div class="loading-dot"></div>
@@ -720,8 +732,14 @@
     </div>
     <div class="auth-form">
       <input type="email" id="auth-email" placeholder="Email của bạn" autocomplete="email">
-      <input type="password" id="auth-pass" placeholder="Mật khẩu" autocomplete="current-password" onkeydown="if(event.key==='Enter')doAuth()">
-      <input type="password" id="auth-pass2" placeholder="Xác nhận mật khẩu" class="hidden" onkeydown="if(event.key==='Enter')doAuth()">
+      <div class="pass-wrap">
+        <input type="password" id="auth-pass" placeholder="Mật khẩu" autocomplete="current-password" onkeydown="if(event.key==='Enter')doAuth()">
+        <button type="button" class="eye-btn" onclick="togglePass('auth-pass',this)" tabindex="-1">👁</button>
+      </div>
+      <div class="pass-wrap hidden" id="pass2-wrap">
+        <input type="password" id="auth-pass2" placeholder="Xác nhận mật khẩu" onkeydown="if(event.key==='Enter')doAuth()">
+        <button type="button" class="eye-btn" onclick="togglePass('auth-pass2',this)" tabindex="-1">👁</button>
+      </div>
       <button class="btn-primary" id="auth-btn" onclick="doAuth()">Đăng nhập</button>
       <div id="forgot-link" style="text-align:center;margin-top:4px;">
         <span onclick="showForgot()" style="font-size:13px;color:var(--text-muted);cursor:pointer;text-decoration:underline;">Quên mật khẩu?</span>
@@ -1255,8 +1273,14 @@
     <div class="auth-logo">Task<span>Flow</span></div>
     <div class="auth-subtitle" style="margin-bottom:24px;">Đặt lại mật khẩu mới</div>
     <div class="auth-form">
-      <input type="password" id="reset-pass" placeholder="Mật khẩu mới (ít nhất 6 ký tự)" autocomplete="new-password">
-      <input type="password" id="reset-pass2" placeholder="Xác nhận mật khẩu mới" onkeydown="if(event.key==='Enter')doReset()">
+      <div class="pass-wrap">
+        <input type="password" id="reset-pass" placeholder="Mật khẩu mới (ít nhất 6 ký tự)" autocomplete="new-password">
+        <button type="button" class="eye-btn" onclick="togglePass('reset-pass',this)" tabindex="-1">👁</button>
+      </div>
+      <div class="pass-wrap">
+        <input type="password" id="reset-pass2" placeholder="Xác nhận mật khẩu mới" onkeydown="if(event.key==='Enter')doReset()">
+        <button type="button" class="eye-btn" onclick="togglePass('reset-pass2',this)" tabindex="-1">👁</button>
+      </div>
       <button class="btn-primary" id="reset-btn" onclick="doReset()">Đặt lại mật khẩu</button>
       <div class="auth-msg" id="reset-msg"></div>
     </div>
@@ -1465,13 +1489,27 @@ async function showApp() {
   logAnalytics('login');
 }
 
-// ── AUTH ──────────────────────────────────────────────
+function togglePass(inputId, btn) {
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  if (input.type === 'password') {
+    input.type = 'text';
+    btn.textContent = '🙈';
+    btn.classList.add('active');
+  } else {
+    input.type = 'password';
+    btn.textContent = '👁';
+    btn.classList.remove('active');
+  }
+}
+
+
 let authMode = 'login';
 function switchTab(mode) {
   authMode = mode;
   document.getElementById('tab-login').classList.toggle('active', mode === 'login');
   document.getElementById('tab-register').classList.toggle('active', mode === 'register');
-  document.getElementById('auth-pass2').classList.toggle('hidden', mode === 'login');
+  document.getElementById('pass2-wrap').classList.toggle('hidden', mode === 'login');
   document.getElementById('auth-btn').textContent = mode === 'login' ? 'Đăng nhập' : 'Tạo tài khoản';
   document.getElementById('forgot-link').style.display = mode === 'login' ? 'block' : 'none';
   document.getElementById('auth-msg').textContent = '';
