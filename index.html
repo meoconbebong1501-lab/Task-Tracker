@@ -2430,6 +2430,16 @@ function renderCalendar() {
   document.getElementById('cal-grid').innerHTML = html;
 }
 
+// ── ESC để đóng modal ─────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  if (document.getElementById('day-detail-modal')?.classList.contains('open')) { closeDayDetail(); return; }
+  if (document.getElementById('task-modal')?.classList.contains('open')) { closeTaskModal(); return; }
+  if (document.getElementById('forgot-modal')?.classList.contains('open')) { closeForgot(); return; }
+  if (document.getElementById('tg-guide-modal')?.classList.contains('open')) { document.getElementById('tg-guide-modal').classList.remove('open'); return; }
+  if (document.getElementById('export-modal')?.classList.contains('open')) { closeExportModal(); return; }
+});
+
 function changeMonth(dir) {
   calendarDate = new Date(calendarDate.getFullYear(), calendarDate.getMonth() + dir, 1);
   renderCalendar();
