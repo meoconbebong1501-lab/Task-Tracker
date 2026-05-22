@@ -1993,7 +1993,7 @@ function filteredTasks() {
   const endOfDay = new Date(now); endOfDay.setHours(23,59,59,999);
   const endOfWeek = new Date(now); endOfWeek.setDate(now.getDate() + (7 - now.getDay()));
 
-  return tasks.filter(t => {
+  const filtered = tasks.filter(t => {
     if (search && !t.title.toLowerCase().includes(search) && !(t.description||'').toLowerCase().includes(search) && !(t.tag||'').toLowerCase().includes(search)) return false;
     if (priorities.length > 0 && !priorities.includes(t.priority)) return false;
     if (tagFilters.length > 0 && !tagFilters.includes(t.tag)) return false;
@@ -2005,6 +2005,16 @@ function filteredTasks() {
     }
     return true;
   });
+
+  // Sắp xếp theo deadline: sớm nhất lên đầu, không có deadline xuống cuối
+  filtered.sort((a, b) => {
+    if (!a.deadline && !b.deadline) return 0;
+    if (!a.deadline) return 1;  // a không có deadline → xuống cuối
+    if (!b.deadline) return -1; // b không có deadline → xuống cuối
+    return new Date(a.deadline) - new Date(b.deadline); // deadline sớm hơn lên trước
+  });
+
+  return filtered;
 }
 
 async function saveTask() {
