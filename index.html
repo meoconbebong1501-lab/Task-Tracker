@@ -345,7 +345,10 @@
   .cal-task-dot.todo { background: rgba(212,132,58,0.14); color: var(--amber); }
   .cal-task-dot.inprogress { background: rgba(37,99,235,0.1); color: #2563eb; }
   .cal-task-dot.done { background: rgba(78,140,98,0.12); color: var(--moss); }
-  .cal-more { font-size: 10px; color: var(--text-muted); margin-top: 2px; }
+  .cal-cell.has-tasks { cursor: pointer; }
+  .cal-cell.has-tasks:hover { border-color: var(--moss); background: rgba(78,140,98,0.04); }
+  .cal-more { font-size: 10px; color: var(--moss); margin-top: 2px; font-weight: 600; cursor: pointer; }
+  .cal-more:hover { text-decoration: underline; }
 
   /* ── LIST VIEW ── */
   #list-view { display: none; }
@@ -1243,6 +1246,21 @@
     <div class="modal-footer">
       <button class="btn-cancel" onclick="closeTaskModal()">Huỷ</button>
       <button class="btn-save" id="modal-save-btn" onclick="saveTask()">Lưu task</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ DAY DETAIL MODAL ═══════════════ -->
+<div class="modal-overlay" id="day-detail-modal" onclick="if(event.target===this)closeDayDetail()">
+  <div class="modal" style="max-width:480px;">
+    <div class="modal-header">
+      <div class="modal-title" id="day-detail-title">📅 Tasks ngày ...</div>
+      <button class="modal-close" onclick="closeDayDetail()">✕</button>
+    </div>
+    <div id="day-detail-list" style="display:flex;flex-direction:column;gap:10px;max-height:60vh;overflow-y:auto;"></div>
+    <div class="modal-footer" style="margin-top:16px;">
+      <button class="btn-save" onclick="closeDayDetail();openTaskModal()">＋ Thêm task ngày này</button>
+      <button class="btn-cancel" onclick="closeDayDetail()">Đóng</button>
     </div>
   </div>
 </div>
@@ -2401,9 +2419,10 @@ function renderCalendar() {
     const isToday = dateObj.getTime() === today.getTime();
     const key = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const dayTasks = tasksByDate[key] || [];
-    const showTasks = dayTasks.slice(0,3).map(t => `<div class="cal-task-dot ${t.status}" onclick="openTaskModal('${t.id}')" title="${esc(t.title)}">${esc(t.title)}</div>`).join('');
-    const more = dayTasks.length > 3 ? `<div class="cal-more">+${dayTasks.length-3} nữa</div>` : '';
-    html += `<div class="cal-cell ${isToday ? 'today' : ''}">
+    const showTasks = dayTasks.slice(0,2).map(t => `<div class="cal-task-dot ${t.status}" onclick="event.stopPropagation();openTaskModal('${t.id}')" title="${esc(t.title)}">${esc(t.title)}</div>`).join('');
+    const more = dayTasks.length > 2 ? `<div class="cal-more" onclick="event.stopPropagation();openDayDetail('${key}')">+${dayTasks.length-2} nữa →</div>` : '';
+    const clickable = dayTasks.length > 0 ? `onclick="openDayDetail('${key}')"` : '';
+    html += `<div class="cal-cell ${isToday ? 'today' : ''} ${dayTasks.length > 0 ? 'has-tasks' : ''}" ${clickable}>
       <div class="cal-date">${isToday ? `<span>${d}</span>` : d}</div>
       ${showTasks}${more}
     </div>`;
@@ -2414,6 +2433,47 @@ function renderCalendar() {
 function changeMonth(dir) {
   calendarDate = new Date(calendarDate.getFullYear(), calendarDate.getMonth() + dir, 1);
   renderCalendar();
+}
+
+function openDayDetail(dateKey) {
+  // dateKey format: YYYY-MM-DD
+  const [y, m, d] = dateKey.split('-').map(Number);
+  const dateLabel = new Date(y, m-1, d).toLocaleDateString('vi-VN', {
+    weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric'
+  });
+  document.getElementById('day-detail-title').textContent = `📅 ${dateLabel}`;
+
+  const dayTasks = tasks.filter(t => {
+    if (!t.deadline) return false;
+    const ld = new Date(t.deadline);
+    const key = `${ld.getFullYear()}-${String(ld.getMonth()+1).padStart(2,'0')}-${String(ld.getDate()).padStart(2,'0')}`;
+    return key === dateKey;
+  }).sort((a,b) => new Date(a.deadline) - new Date(b.deadline));
+
+  const list = document.getElementById('day-detail-list');
+  if (dayTasks.length === 0) {
+    list.innerHTML = '<div style="text-align:center;padding:24px;color:var(--text-muted);">Không có task nào</div>';
+  } else {
+    list.innerHTML = dayTasks.map(t => `
+      <div onclick="closeDayDetail();openTaskModal('${t.id}')" style="background:var(--cream);border-radius:var(--radius);padding:14px 16px;cursor:pointer;border:1px solid var(--border);transition:box-shadow 0.15s;"
+        onmouseover="this.style.boxShadow='var(--shadow)'" onmouseout="this.style.boxShadow=''">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+          <span style="font-size:14px;font-weight:500;color:var(--text);">${esc(t.title)}</span>
+          <span style="font-size:11px;color:var(--text-muted);">${formatDeadline(t.deadline).split(',')[1]?.trim()||''}</span>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+          <span class="priority-badge priority-${t.priority}">${priorityLabel(t.priority)}</span>
+          ${t.tag ? `<span class="tag-badge" style="background:${t.tag_color||'#4e8c62'}">${esc(t.tag)}</span>` : ''}
+          <span style="font-size:11px;padding:2px 8px;border-radius:4px;background:${t.status==='done'?'rgba(78,140,98,0.12)':t.status==='inprogress'?'rgba(37,99,235,0.1)':'rgba(212,132,58,0.12)'};color:${t.status==='done'?'var(--moss)':t.status==='inprogress'?'#2563eb':'var(--amber)'};">${statusLabel(t.status)}</span>
+        </div>
+        ${t.description ? `<div style="font-size:12px;color:var(--text-muted);margin-top:6px;">${esc(t.description)}</div>` : ''}
+      </div>`).join('');
+  }
+  document.getElementById('day-detail-modal').classList.add('open');
+}
+
+function closeDayDetail() {
+  document.getElementById('day-detail-modal').classList.remove('open');
 }
 
 // ── STATS ──────────────────────────────────────────────
