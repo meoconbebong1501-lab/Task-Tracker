@@ -302,6 +302,11 @@
     display: flex; align-items: center; justify-content: center;
     cursor: pointer; font-size: 14px; transition: background 0.15s;
   }
+  .action-btn-gcal {
+    background: rgba(66,133,244,0.08); color: #4285f4;
+    text-decoration: none; display: flex; align-items: center; justify-content: center;
+  }
+  .action-btn-gcal:hover { background: rgba(66,133,244,0.16); }
   .action-btn-edit { background: rgba(26,46,34,0.06); color: var(--text-muted); }
   .action-btn-edit:hover { background: rgba(26,46,34,0.12); color: var(--text); }
   .action-btn-del { background: rgba(192,57,43,0.06); color: var(--red); }
@@ -2354,9 +2359,20 @@ async function dropTask(newStatus) {
   _dragId = null;
 }
 
+function gcalLink(t) {
+  if (!t.deadline) return '';
+  const start = new Date(t.deadline);
+  const end = new Date(start.getTime() + 60 * 60 * 1000); // +1 tiếng
+  const fmt = d => d.toISOString().replace(/[-:]/g,'').split('.')[0];
+  const title = encodeURIComponent(t.title);
+  const details = encodeURIComponent((t.description||'') + (t.tag ? `\nTag: ${t.tag}` : '') + '\n\nTạo bởi TaskFlow');
+  return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${fmt(start)}/${fmt(end)}&details=${details}`;
+}
+
 function taskCard(t) {
   const dl = deadlineBadge(t.deadline, t.status);
   const tagHtml = t.tag ? `<span class="tag-badge" style="background:${t.tag_color||'#4e8c62'}">${esc(t.tag)}</span>` : '';
+  const gcal = t.deadline ? `<a class="action-btn action-btn-gcal" href="${gcalLink(t)}" target="_blank" onclick="event.stopPropagation()" title="Thêm vào Google Calendar">📅</a>` : '';
   return `<div class="task-card" draggable="true" data-id="${t.id}"
     ondragstart="dragStart(event,'${t.id}')"
     ondragend="dragEnd(event)"
@@ -2365,6 +2381,7 @@ function taskCard(t) {
     ontouchend="touchEnd(event)"
     onclick="cardClick('${t.id}')">
     <div class="task-card-actions">
+      ${gcal}
       <button class="action-btn action-btn-edit" onclick="event.stopPropagation();openTaskModal('${t.id}')">✎</button>
       <button class="action-btn action-btn-del" onclick="event.stopPropagation();deleteTask('${t.id}')">✕</button>
     </div>
@@ -2392,6 +2409,7 @@ function renderList() {
         <span style="font-size:12px;color:var(--text-muted)">${statusLabel(t.status)}</span>
       </div>
       <div class="task-list-actions">
+        ${t.deadline ? `<a class="action-btn action-btn-gcal" href="${gcalLink(t)}" target="_blank" onclick="event.stopPropagation()" title="Thêm vào Google Calendar">📅</a>` : ''}
         <button class="action-btn action-btn-edit" onclick="event.stopPropagation();openTaskModal('${t.id}')">✎</button>
         <button class="action-btn action-btn-del" onclick="event.stopPropagation();deleteTask('${t.id}')">✕</button>
       </div>
@@ -2480,6 +2498,7 @@ function openDayDetail(dateKey) {
           <span class="priority-badge priority-${t.priority}">${priorityLabel(t.priority)}</span>
           ${t.tag ? `<span class="tag-badge" style="background:${t.tag_color||'#4e8c62'}">${esc(t.tag)}</span>` : ''}
           <span style="font-size:11px;padding:2px 8px;border-radius:4px;background:${t.status==='done'?'rgba(78,140,98,0.12)':t.status==='inprogress'?'rgba(37,99,235,0.1)':'rgba(212,132,58,0.12)'};color:${t.status==='done'?'var(--moss)':t.status==='inprogress'?'#2563eb':'var(--amber)'};">${statusLabel(t.status)}</span>
+          ${t.deadline ? `<a href="${gcalLink(t)}" target="_blank" onclick="event.stopPropagation()" style="font-size:11px;padding:2px 8px;border-radius:4px;background:rgba(66,133,244,0.1);color:#4285f4;text-decoration:none;">📅 Google Cal</a>` : ''}
         </div>
         ${t.description ? `<div style="font-size:12px;color:var(--text-muted);margin-top:6px;">${esc(t.description)}</div>` : ''}
       </div>`).join('');
