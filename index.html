@@ -1545,6 +1545,12 @@ async function doAuth() {
   const msg = document.getElementById('auth-msg');
   const btn = document.getElementById('auth-btn');
   if (!email || !pass) { msg.textContent = 'Vui lòng điền đầy đủ thông tin'; return; }
+  // Validate định dạng email
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+  if (!emailRegex.test(email)) {
+    msg.textContent = '❌ Email không đúng định dạng — ví dụ: khach@gmail.com';
+    return;
+  }
   if (authMode === 'register' && pass !== pass2) { msg.textContent = 'Mật khẩu xác nhận không khớp'; return; }
   btn.disabled = true;
   btn.textContent = '...';
@@ -2893,10 +2899,21 @@ async function renderAdmin() {
 }
 
 async function activateUser() {
-  const email = document.getElementById('admin-new-email').value.trim();
+  const email = document.getElementById('admin-new-email').value.trim().toLowerCase();
   const note  = document.getElementById('admin-new-note').value.trim() || `Kích hoạt ${new Date().toLocaleDateString('vi-VN')}`;
   const msg   = document.getElementById('admin-activate-msg');
+
+  // Validate email
   if (!email) { msg.textContent = 'Vui lòng nhập email'; msg.style.color = 'var(--red)'; return; }
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+  if (!emailRegex.test(email)) {
+    msg.style.color = 'var(--red)';
+    if (!email.includes('@')) msg.textContent = '❌ Email thiếu dấu @ — ví dụ đúng: khach@gmail.com';
+    else if (!email.includes('.')) msg.textContent = '❌ Email thiếu đuôi — ví dụ đúng: khach@gmail.com';
+    else msg.textContent = '❌ Email không đúng định dạng — ví dụ đúng: khach@gmail.com';
+    return;
+  }
+
   msg.textContent = 'Đang kích hoạt...'; msg.style.color = 'var(--text-muted)';
   // Gọi Edge Function với service key — hoặc insert trực tiếp nếu admin đã login
   // Cách đơn giản: copy SQL ra để chạy
