@@ -2363,10 +2363,22 @@ function gcalLink(t) {
   if (!t.deadline) return '';
   const start = new Date(t.deadline);
   const end = new Date(start.getTime() + 60 * 60 * 1000); // +1 tiếng
-  const fmt = d => d.toISOString().replace(/[-:]/g,'').split('.')[0];
+
+  // Format theo giờ LOCAL (không dùng toISOString vì sẽ convert sang UTC)
+  const fmt = d => {
+    const pad = n => String(n).padStart(2,'0');
+    return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}T${pad(d.getHours())}${pad(d.getMinutes())}00`;
+  };
+
+  // Encode tiếng Việt đúng cách
   const title = encodeURIComponent(t.title);
-  const details = encodeURIComponent((t.description||'') + (t.tag ? `\nTag: ${t.tag}` : '') + '\n\nTạo bởi TaskFlow');
-  return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${fmt(start)}/${fmt(end)}&details=${details}`;
+  const desc = encodeURIComponent(
+    (t.description ? t.description + '\n\n' : '') +
+    (t.tag ? `Tag: ${t.tag}\n` : '') +
+    'Tao boi TaskFlow'
+  );
+
+  return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${fmt(start)}/${fmt(end)}&details=${desc}&ctz=Asia%2FHo_Chi_Minh`;
 }
 
 function taskCard(t) {
