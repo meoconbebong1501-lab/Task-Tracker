@@ -2056,9 +2056,16 @@ async function saveTask() {
   try {
     let savedTask;
     if (editingTaskId) {
+      const oldTask = tasks.find(t => t.id === editingTaskId);
       const { data } = await sb.from('tasks').update(payload).eq('id', editingTaskId).eq('user_id', currentUser.id).select().single();
       savedTask = data;
       tasks = tasks.map(t => t.id === editingTaskId ? { ...t, ...payload } : t);
+
+      // Nếu deadline thay đổi → clear reminded để nhắc lại đúng mốc mới
+      if (oldTask?.deadline !== payload.deadline) {
+        _reminded.clear(editingTaskId);
+      }
+
       if (userSettings.notify_status && status_prev && status_prev !== payload.status) {
         const msg = `Task đổi trạng thái: ${statusLabel(status_prev)} → ${statusLabel(payload.status)}`;
         sendNotification('🔄 ' + title, msg, `🔄 *Task cập nhật trạng thái*\n📌 ${title}\n${statusLabel(status_prev)} → ${statusLabel(payload.status)}`);
@@ -2066,7 +2073,6 @@ async function saveTask() {
         if (payload.status === 'done') {
           _reminded.clear(editingTaskId);
           // Tự động tạo task tiếp theo nếu có repeat
-          const oldTask = tasks.find(t => t.id === editingTaskId);
           if (oldTask?.repeat_type && oldTask.repeat_type !== 'none') {
             await handleRepeatTask({ ...oldTask, ...payload });
           }
