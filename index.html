@@ -1806,9 +1806,8 @@ function sendBrowserNotification(title, body) {
       icon: 'https://img.icons8.com/color/48/todo-list.png',
       badge: 'https://img.icons8.com/color/48/todo-list.png',
       tag: 'taskflow-' + Date.now(),
+      requireInteraction: true, // Không tự tắt, phải bấm mới tắt
     });
-    // Tự đóng sau 8 giây
-    setTimeout(() => n.close(), 8000);
     // Click vào notification → focus app
     n.onclick = () => { window.focus(); n.close(); };
   } catch(e) {}
