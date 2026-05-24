@@ -2203,6 +2203,15 @@ async function saveTask() {
     deadline,
     updated_at: new Date().toISOString(),
   };
+
+  // Tạo group ID cho các task lặp lại (để xoá cả nhóm)
+  const repeatType = payload.repeat_type;
+  const repeatDays = JSON.parse(payload.repeat_days || '[]');
+  const needsGroup = repeatType !== 'none' && deadline &&
+    (repeatType === 'daily' || repeatType === 'monthly' ||
+     (repeatType === 'weekly' && repeatDays.length > 0));
+  const groupId = needsGroup ? `grp_${Date.now()}_${Math.random().toString(36).slice(2,7)}` : null;
+  if (groupId) payload.repeat_group_id = groupId;
   try {
     let savedTask;
     if (editingTaskId) {
@@ -2244,35 +2253,40 @@ async function saveTask() {
       }
       logAnalytics('task_created', { title });
 
-      // Nếu weekly repeat có nhiều ngày → tạo task cho các ngày khác trong tuần hiện tại
-      if (payload.repeat_type === 'weekly' && payload.deadline) {
-        const repeatDays = JSON.parse(payload.repeat_days || '[]');
-        if (repeatDays.length > 1) {
-          const baseDate = new Date(payload.deadline);
-          const baseDay = baseDate.getDay(); // 0=CN, 1=T2...
+      // Tạo các task lặp lại cho các ngày tiếp theo
+      if (groupId && deadline) {
+        const baseDate = new Date(deadline);
+        const extraTasks = [];
 
+        if (repeatType === 'daily') {
+          // Tạo task cho 4 tuần tiếp theo
+          for (let i = 1; i <= 28; i++) {
+            const nextDate = new Date(baseDate);
+            nextDate.setDate(baseDate.getDate() + i);
+            extraTasks.push({ ...payload, deadline: nextDate.toISOString(), created_at: new Date().toISOString() });
+          }
+        } else if (repeatType === 'weekly') {
+          const baseDay = baseDate.getDay();
+          // Tạo task cho các ngày khác được chọn trong tuần hiện tại
           for (const day of repeatDays) {
-            if (day === baseDay) continue; // bỏ qua ngày đã tạo
-
-            // Tính khoảng cách ngày trong tuần — luôn lấy ngày gần nhất về phía trước hoặc sau
+            if (day === baseDay) continue;
             let diff = day - baseDay;
-            // Nếu diff < 0 → ngày đó đã qua trong tuần này → lấy tuần sau
-            // Nếu diff > 0 → ngày đó chưa đến → lấy trong tuần này
             if (diff < 0) diff += 7;
-
             const nextDate = new Date(baseDate);
             nextDate.setDate(baseDate.getDate() + diff);
             nextDate.setHours(baseDate.getHours(), baseDate.getMinutes(), 0, 0);
-
-            const extraPayload = {
-              ...payload,
-              deadline: nextDate.toISOString(),
-              created_at: new Date().toISOString(),
-            };
-            const { data: extraData } = await sb.from('tasks').insert(extraPayload).select().single();
-            if (extraData) tasks.unshift(extraData);
+            extraTasks.push({ ...payload, deadline: nextDate.toISOString(), created_at: new Date().toISOString() });
           }
-          showToast(`✅ Đã tạo ${repeatDays.length} tasks cho ${repeatDays.length} ngày lặp lại`);
+        }
+
+        if (extraTasks.length > 0) {
+          const { data: extraData } = await sb.from('tasks').insert(extraTasks).select();
+          if (extraData) extraData.forEach(t => tasks.unshift(t));
+          if (repeatType === 'weekly') {
+            showToast(`✅ Đã tạo ${repeatDays.length} tasks cho ${repeatDays.length} ngày trong tuần`);
+          } else if (repeatType === 'daily') {
+            showToast(`✅ Đã tạo task lặp lại hàng ngày cho 4 tuần tới`);
+          }
         }
       }
     }
@@ -2286,17 +2300,44 @@ async function saveTask() {
 }
 
 async function deleteTask(id) {
-  if (!confirm('Xoá task này?')) return;
+  const t = tasks.find(x => x.id === id);
+  const hasGroup = t?.repeat_group_id;
+
+  // Hỏi xoá cả nhóm nếu có
+  let deleteAll = false;
+  if (hasGroup) {
+    const groupCount = tasks.filter(x => x.repeat_group_id === t.repeat_group_id).length;
+    if (groupCount > 1) {
+      deleteAll = confirm(`Task này thuộc nhóm lặp lại (${groupCount} tasks).\n\nNhấn OK để xoá TẤT CẢ ${groupCount} tasks trong nhóm.\nNhấn Cancel để chỉ xoá task này.`);
+    } else {
+      if (!confirm('Xoá task này?')) return;
+    }
+  } else {
+    if (!confirm('Xoá task này?')) return;
+  }
+
   try {
-    const t = tasks.find(x => x.id === id);
-    await sb.from('tasks').delete().eq('id', id).eq('user_id', currentUser.id);
-    _reminded.clear(id);
-    [10080, 1440, 60, 30, 15, 5].forEach(m => localStorage.removeItem(`_tf_r_${id}_${m}`));
-    tasks = tasks.filter(x => x.id !== id);
+    if (deleteAll && hasGroup) {
+      // Xoá cả nhóm
+      const groupIds = tasks.filter(x => x.repeat_group_id === t.repeat_group_id).map(x => x.id);
+      await sb.from('tasks').delete().eq('repeat_group_id', t.repeat_group_id).eq('user_id', currentUser.id);
+      groupIds.forEach(gid => {
+        _reminded.clear(gid);
+        [10080, 1440, 60, 30, 15, 5].forEach(m => localStorage.removeItem(`_tf_r_${gid}_${m}`));
+      });
+      tasks = tasks.filter(x => x.repeat_group_id !== t.repeat_group_id);
+      showToast(`🗑 Đã xoá ${groupIds.length} tasks`);
+    } else {
+      // Chỉ xoá task này
+      await sb.from('tasks').delete().eq('id', id).eq('user_id', currentUser.id);
+      _reminded.clear(id);
+      [10080, 1440, 60, 30, 15, 5].forEach(m => localStorage.removeItem(`_tf_r_${id}_${m}`));
+      tasks = tasks.filter(x => x.id !== id);
+      showToast('🗑 Đã xoá task');
+    }
+    if (t) sendTelegramNotification(`🗑 *Task đã bị xoá*\n📌 ${t.title}`);
     updateStats();
     renderCurrentView();
-    showToast('🗑 Đã xoá task');
-    if (t) sendTelegramNotification(`🗑 *Task đã bị xoá*\n📌 ${t.title}`);
   } catch(e) {
     showToast('Lỗi xoá task', 'error');
   }
