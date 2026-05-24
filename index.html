@@ -2243,6 +2243,29 @@ async function saveTask() {
         sendNotification('✨ Task mới: ' + title, body, `✨ *Task mới được tạo*\n📌 ${title}\n${body}`);
       }
       logAnalytics('task_created', { title });
+
+      // Nếu weekly repeat có nhiều ngày → tạo task cho các ngày khác trong tuần hiện tại
+      if (payload.repeat_type === 'weekly' && payload.deadline) {
+        const repeatDays = JSON.parse(payload.repeat_days || '[]');
+        if (repeatDays.length > 1) {
+          const baseDate = new Date(payload.deadline);
+          const baseDay = baseDate.getDay(); // 0=CN, 1=T2...
+          for (const day of repeatDays) {
+            if (day === baseDay) continue; // bỏ qua ngày đã tạo
+            const diff = (day - baseDay + 7) % 7;
+            const nextDate = new Date(baseDate);
+            nextDate.setDate(baseDate.getDate() + diff);
+            const extraPayload = {
+              ...payload,
+              deadline: nextDate.toISOString(),
+              created_at: new Date().toISOString(),
+            };
+            const { data: extraData } = await sb.from('tasks').insert(extraPayload).select().single();
+            if (extraData) tasks.unshift(extraData);
+          }
+          showToast(`✅ Đã tạo ${repeatDays.length} tasks cho ${repeatDays.length} ngày trong tuần`);
+        }
+      }
     }
     updateStats();
     renderCurrentView();
