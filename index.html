@@ -512,6 +512,16 @@
   }
   .toggle.on::after { left: 21px; }
 
+  .repeat-day-chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 6px 12px; border: 1px solid var(--border-strong);
+    border-radius: 20px; font-size: 12px; font-weight: 500;
+    cursor: pointer; transition: all 0.15s; color: var(--text);
+    background: var(--cream); user-select: none;
+  }
+  .repeat-day-chip:has(input:checked) { background: var(--forest); color: white; border-color: var(--forest); }
+  .repeat-day-chip input { display: none; }
+
   /* ── NOTIFICATION CHANNELS ── */
   .notif-channel-row {
     display: flex; align-items: center; gap: 12px;
@@ -1236,7 +1246,7 @@
     <div class="form-row">
       <div class="form-group">
         <label class="form-label">Lặp lại</label>
-        <select class="form-input" id="task-repeat">
+        <select class="form-input" id="task-repeat" onchange="toggleRepeatDays()">
           <option value="none">Không lặp</option>
           <option value="daily">📅 Hàng ngày</option>
           <option value="weekly">📆 Hàng tuần</option>
@@ -1248,6 +1258,33 @@
         <input type="datetime-local" class="form-input" id="task-deadline">
       </div>
     </div>
+
+    <!-- Chọn ngày trong tuần khi repeat weekly -->
+    <div class="form-group" id="repeat-days-group" style="display:none;">
+      <label class="form-label">Lặp vào các ngày</label>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;">
+        <label class="repeat-day-chip"><input type="checkbox" name="repeat-day" value="1"> T2</label>
+        <label class="repeat-day-chip"><input type="checkbox" name="repeat-day" value="2"> T3</label>
+        <label class="repeat-day-chip"><input type="checkbox" name="repeat-day" value="3"> T4</label>
+        <label class="repeat-day-chip"><input type="checkbox" name="repeat-day" value="4"> T5</label>
+        <label class="repeat-day-chip"><input type="checkbox" name="repeat-day" value="5"> T6</label>
+        <label class="repeat-day-chip"><input type="checkbox" name="repeat-day" value="6"> T7</label>
+        <label class="repeat-day-chip"><input type="checkbox" name="repeat-day" value="0"> CN</label>
+      </div>
+    </div>
+
+    <!-- Thông báo trước -->
+    <div class="form-group">
+      <label class="form-label">Nhắc trước deadline</label>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;" id="reminder-chips">
+        <label class="repeat-day-chip"><input type="checkbox" name="reminder" value="10080"> 1 tuần</label>
+        <label class="repeat-day-chip"><input type="checkbox" name="reminder" value="1440"> 1 ngày</label>
+        <label class="repeat-day-chip"><input type="checkbox" name="reminder" value="60" checked> 1 tiếng</label>
+        <label class="repeat-day-chip"><input type="checkbox" name="reminder" value="15" checked> 15 phút</label>
+        <label class="repeat-day-chip"><input type="checkbox" name="reminder" value="5"> 5 phút</label>
+      </div>
+    </div>
+
     <div class="modal-footer">
       <button class="btn-cancel" onclick="closeTaskModal()">Huỷ</button>
       <button class="btn-save" id="modal-save-btn" onclick="saveTask()">Lưu task</button>
@@ -1747,6 +1784,32 @@ function toggleSetting(key) {
   if (el) el.classList.toggle('on');
 }
 
+function toggleRepeatDays() {
+  const repeat = document.getElementById('task-repeat')?.value;
+  const group = document.getElementById('repeat-days-group');
+  if (group) group.style.display = repeat === 'weekly' ? 'block' : 'none';
+}
+
+function getSelectedReminders() {
+  return [...document.querySelectorAll('input[name="reminder"]:checked')].map(el => parseInt(el.value));
+}
+
+function getSelectedRepeatDays() {
+  return [...document.querySelectorAll('input[name="repeat-day"]:checked')].map(el => parseInt(el.value));
+}
+
+function setReminderChips(reminders = [60, 15]) {
+  document.querySelectorAll('input[name="reminder"]').forEach(el => {
+    el.checked = reminders.includes(parseInt(el.value));
+  });
+}
+
+function setRepeatDayChips(days = []) {
+  document.querySelectorAll('input[name="repeat-day"]').forEach(el => {
+    el.checked = days.includes(parseInt(el.value));
+  });
+}
+
 function toggleTelegram() {
   const el = document.getElementById('toggle-telegram');
   el.classList.toggle('on');
@@ -1884,10 +1947,9 @@ function checkDeadlinesBrowserOnly() {
   if (!userSettings.notify_push) return;
 
   const now = new Date();
-  // Dùng localStorage trực tiếp thay vì gọi getReminded (tránh reference error)
   const getSet = (key) => { try { return new Set(JSON.parse(localStorage.getItem(key)||'[]')); } catch(e) { return new Set(); } };
-  const addToSet = (key, id) => { const s=getSet(key); s.add(id); localStorage.setItem(key, JSON.stringify([...s])); };
-  const h1 = getSet('_tf_r_h1'), m15 = getSet('_tf_r_m15'), overdue = getSet('_tf_r_od');
+  const addToSet = (key, val) => { const s=getSet(key); s.add(val); localStorage.setItem(key, JSON.stringify([...s])); };
+  const overdueSet = getSet('_tf_r_od');
 
   tasks.forEach(t => {
     if (!t.deadline || t.status === 'done') return;
@@ -1895,18 +1957,28 @@ function checkDeadlinesBrowserOnly() {
     const diff = dl - now;
     const diffMin = diff / 60000;
 
-    if (diff < 0 && diff >= -15*60000 && !overdue.has(t.id)) {
+    // Quá hạn
+    if (diff < 0 && diff >= -15*60000 && !overdueSet.has(t.id)) {
       addToSet('_tf_r_od', t.id);
       sendBrowserNotification('🚨 Task quá hạn!', t.title);
+      return;
     }
-    if (diffMin >= 55 && diffMin <= 65 && !h1.has(t.id)) {
-      addToSet('_tf_r_h1', t.id);
-      sendBrowserNotification('⏰ Còn 1 tiếng!', `"${t.title}" đến hạn lúc ${formatDeadline(t.deadline)}`);
-    }
-    if (diffMin >= 13 && diffMin <= 17 && !m15.has(t.id)) {
-      addToSet('_tf_r_m15', t.id);
-      sendBrowserNotification('🔥 Còn 15 phút!', `"${t.title}" sắp đến hạn!`);
-    }
+
+    // Các mốc nhắc theo reminders của task (mặc định 60 và 15 phút)
+    const reminders = t.reminders ? JSON.parse(t.reminders) : [60, 15];
+    reminders.forEach(minutes => {
+      const window_min = Math.max(2, Math.round(minutes * 0.08));
+      if (diffMin >= minutes - window_min && diffMin <= minutes + window_min) {
+        const remKey = `_tf_r_${t.id}_${minutes}`;
+        if (!getSet(remKey).has('sent')) {
+          addToSet(remKey, 'sent');
+          const label = minutes >= 1440 ? `${Math.round(minutes/1440)} ngày` :
+                        minutes >= 60   ? `${Math.round(minutes/60)} tiếng` :
+                        `${minutes} phút`;
+          sendBrowserNotification(`⏰ Còn ${label}!`, `"${t.title}" đến hạn lúc ${formatDeadline(t.deadline)}`);
+        }
+      }
+    });
   });
 }
 
@@ -2061,6 +2133,8 @@ async function saveTask() {
     tag: document.getElementById('task-tag').value.trim() || null,
     tag_color: document.getElementById('task-tag-color').value || '#4e8c62',
     repeat_type: document.getElementById('task-repeat')?.value || 'none',
+    repeat_days: JSON.stringify(getSelectedRepeatDays()),
+    reminders: JSON.stringify(getSelectedReminders()),
     deadline,
     updated_at: new Date().toISOString(),
   };
@@ -2139,7 +2213,12 @@ function openTaskModal(taskId) {
     document.getElementById('task-priority').value = t.priority || 'medium';
     document.getElementById('task-tag').value = t.tag || '';
     document.getElementById('task-tag-color').value = t.tag_color || '#4e8c62';
-    if (document.getElementById('task-repeat')) document.getElementById('task-repeat').value = t.repeat_type || 'none';
+    if (document.getElementById('task-repeat')) {
+      document.getElementById('task-repeat').value = t.repeat_type || 'none';
+      toggleRepeatDays();
+      setRepeatDayChips(t.repeat_days ? JSON.parse(t.repeat_days) : []);
+      setReminderChips(t.reminders ? JSON.parse(t.reminders) : [60, 15]);
+    }
     // Sync color picker
     document.querySelectorAll('.tag-color-dot').forEach(dot => {
       dot.classList.toggle('active', dot.dataset.color === (t.tag_color || '#4e8c62'));
@@ -2159,6 +2238,9 @@ function openTaskModal(taskId) {
     document.querySelectorAll('.tag-color-dot').forEach((d,i) => d.classList.toggle('active', i===0));
     const preview = document.getElementById('tag-preview');
     if (preview) preview.style.display = 'none';
+    toggleRepeatDays();
+    setRepeatDayChips([]);
+    setReminderChips([60, 15]);
   }
   modal.classList.add('open');
   setTimeout(() => document.getElementById('task-title').focus(), 100);
@@ -2736,23 +2818,68 @@ function downloadBlob(blob, filename) {
 
 // ── REPEAT TASK ───────────────────────────────────────
 async function handleRepeatTask(task) {
-  if (!task.repeat_type || task.repeat_type === 'none' || !task.deadline) return;
+  if (!task.repeat_type || task.repeat_type === 'none') return;
   const dl = new Date(task.deadline);
-  let next = new Date(dl);
-  if (task.repeat_type === 'daily')   next.setDate(dl.getDate() + 1);
-  if (task.repeat_type === 'weekly')  next.setDate(dl.getDate() + 7);
-  if (task.repeat_type === 'monthly') next.setMonth(dl.getMonth() + 1);
-  try {
-    const newTask = {
-      user_id: currentUser.id, title: task.title, description: task.description,
-      status: 'todo', priority: task.priority, tag: task.tag, tag_color: task.tag_color,
-      repeat_type: task.repeat_type, deadline: next.toISOString(),
-      created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
-    };
-    const { data } = await sb.from('tasks').insert(newTask).select().single();
-    if (data) { tasks.unshift(data); renderCurrentView(); updateStats(); }
-    showToast(`🔄 Đã tạo task lặp lại: ${formatDeadline(next.toISOString())}`);
-  } catch(e) {}
+  const repeatDays = task.repeat_days ? JSON.parse(task.repeat_days) : [];
+
+  let nextDates = [];
+
+  if (task.repeat_type === 'daily') {
+    const next = new Date(dl);
+    next.setDate(dl.getDate() + 1);
+    nextDates = [next];
+  } else if (task.repeat_type === 'weekly') {
+    if (repeatDays.length > 0) {
+      // Tạo task cho từng ngày được chọn trong tuần tới
+      const nextWeek = new Date(dl);
+      nextWeek.setDate(dl.getDate() + 7);
+      // Lấy ngày đầu tuần tới
+      repeatDays.forEach(day => {
+        const next = new Date(nextWeek);
+        const currentDay = next.getDay();
+        const diff = (day - currentDay + 7) % 7;
+        next.setDate(next.getDate() + diff);
+        next.setHours(dl.getHours(), dl.getMinutes(), 0, 0);
+        nextDates.push(new Date(next));
+      });
+    } else {
+      const next = new Date(dl);
+      next.setDate(dl.getDate() + 7);
+      nextDates = [next];
+    }
+  } else if (task.repeat_type === 'monthly') {
+    const next = new Date(dl);
+    next.setMonth(dl.getMonth() + 1);
+    nextDates = [next];
+  }
+
+  // Tạo task mới cho mỗi ngày
+  for (const nextDate of nextDates) {
+    try {
+      const newTask = {
+        user_id: currentUser.id,
+        title: task.title,
+        description: task.description,
+        status: 'todo',
+        priority: task.priority,
+        tag: task.tag,
+        tag_color: task.tag_color,
+        repeat_type: task.repeat_type,
+        repeat_days: task.repeat_days,
+        reminders: task.reminders,
+        deadline: nextDate.toISOString(),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+      const { data } = await sb.from('tasks').insert(newTask).select().single();
+      if (data) tasks.unshift(data);
+    } catch(e) {}
+  }
+
+  if (nextDates.length > 0) {
+    renderCurrentView(); updateStats();
+    showToast(`🔄 Đã tạo ${nextDates.length} task lặp lại cho tuần/chu kỳ tiếp theo`);
+  }
 }
 
 // ── ADMIN ─────────────────────────────────────────────
