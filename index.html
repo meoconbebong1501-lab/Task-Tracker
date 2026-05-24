@@ -9,7 +9,36 @@
 <meta name="theme-color" content="#1a2e22">
 <title>TaskFlow v1.3.0 — Quản lý công việc</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet">
+<style>
+@font-face {
+  font-family: 'Belgan';
+  src: url('1FTV-VIP-Belgan-Aesthetic.otf') format('opentype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Montserrat';
+  src: url('Montserrat-Regular.otf') format('opentype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Montserrat';
+  src: url('Montserrat-Medium.otf') format('opentype');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Montserrat';
+  src: url('Montserrat-Bold.otf') format('opentype');
+  font-weight: 600 700;
+  font-style: normal;
+  font-display: swap;
+}
+</style>
 <style>
   :root {
     --forest: #1a2e22;
@@ -36,8 +65,8 @@
     --col-todo: #fff8f0;
     --col-inprogress: #f0f6ff;
     --col-done: #f0faf4;
-    --font-sans: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-    --font-serif: 'DM Serif Display', Georgia, 'Times New Roman', serif;
+    --font-sans: 'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+    --font-serif: 'Belgan', Georgia, serif;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
