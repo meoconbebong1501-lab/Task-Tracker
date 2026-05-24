@@ -161,7 +161,7 @@
     background: var(--cream); border-radius: var(--radius-lg);
     padding: 44px; width: 460px; box-shadow: var(--shadow-lg);
   }
-  .setup-card h2 { font-family: var(--font-serif); font-size: 22px; margin-bottom: 6px; }
+  .setup-card h2 { font-family: var(--font-sans); font-weight: 600; font-size: 22px; margin-bottom: 6px; }
   .setup-card p { font-size: 13px; color: var(--text-muted); margin-bottom: 28px; line-height: 1.6; }
   .setup-form { display: flex; flex-direction: column; gap: 14px; }
   .setup-form input {
@@ -223,7 +223,7 @@
 
   /* ── TOOLBAR ── */
   .toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; flex-wrap: wrap; }
-  .toolbar-title { font-family: var(--font-serif); font-size: 22px; color: var(--forest); }
+  .toolbar-title { font-family: var(--font-sans); font-weight: 700; font-size: 22px; color: var(--forest); }
   .toolbar-right { margin-left: auto; display: flex; gap: 10px; align-items: center; }
   .btn-add {
     display: flex; align-items: center; gap: 7px; padding: 9px 18px;
@@ -392,7 +392,7 @@
     box-shadow: var(--shadow-lg); position: relative;
   }
   .modal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
-  .modal-title { font-family: var(--font-serif); font-size: 22px; }
+  .modal-title { font-family: var(--font-sans); font-size: 20px; font-weight: 600; }
   .modal-close {
     width: 32px; height: 32px; border-radius: 8px; border: none;
     background: var(--cream-dark); color: var(--text-muted); cursor: pointer;
@@ -461,7 +461,7 @@
   .onboard-slide { animation:fadeIn 0.25s ease; }
   @keyframes fadeIn { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
   .onboard-icon { font-size:40px; margin-bottom:12px; }
-  .onboard-title { font-family:'DM Serif Display',serif; font-size:24px; color:var(--forest); margin-bottom:10px; }
+  .onboard-title { font-family:var(--font-sans); font-weight:700; font-size:24px; color:var(--forest); margin-bottom:10px; }
   .onboard-desc { font-size:14px; color:var(--text-muted); line-height:1.7; margin-bottom:22px; }
   .onboard-feature-list { display:flex; flex-direction:column; gap:10px; margin-bottom:24px; }
   .onboard-feature { display:flex; align-items:flex-start; gap:10px; font-size:14px; color:var(--text); line-height:1.5; }
@@ -501,7 +501,7 @@
     background: white; border-radius: var(--radius-lg); border: 1px solid var(--border);
     padding: 28px 32px; max-width: 540px; margin-bottom: 18px;
   }
-  .settings-card h3 { font-family: var(--font-serif); font-size: 18px; margin-bottom: 18px; }
+  .settings-card h3 { font-family: var(--font-sans); font-weight: 600; font-size: 18px; margin-bottom: 18px; }
   .settings-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--border); }
   .settings-row:last-child { border-bottom: none; }
   .settings-row-label { font-size: 14px; font-weight: 500; }
@@ -2943,7 +2943,7 @@ async function renderAdmin() {
 
     el.innerHTML = `
       <div style="max-width:1000px;">
-        <h2 style="font-family:'DM Serif Display',serif;font-size:22px;margin-bottom:20px;">⚙️ Admin Dashboard</h2>
+        <h2 style="font-family:var(--font-sans);font-size:20px;font-weight:700;margin-bottom:20px;">⚙️ Admin Dashboard</h2>
 
         <!-- Stats -->
         <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:12px;">
@@ -2960,7 +2960,7 @@ async function renderAdmin() {
         <!-- User Table -->
         <div class="settings-card" style="padding:0;overflow:hidden;">
           <div style="padding:18px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
-            <h3 style="font-family:'DM Serif Display',serif;font-size:18px;">👥 Danh sách users (${users.length})</h3>
+            <h3 style="font-family:var(--font-sans);font-size:17px;font-weight:600;">👥 Danh sách users (${users.length})</h3>
             <div style="font-size:12px;color:var(--text-muted);">User ID lấy từ Supabase Auth</div>
           </div>
           <div style="overflow-x:auto;">
@@ -2997,7 +2997,7 @@ async function renderAdmin() {
 
         <!-- Kích hoạt user mới -->
         <div class="settings-card" style="margin-top:16px;">
-          <h3 style="font-family:'DM Serif Display',serif;font-size:18px;margin-bottom:12px;">💳 Kích hoạt tài khoản mới</h3>
+          <h3 style="font-family:var(--font-sans);font-size:17px;font-weight:600;margin-bottom:12px;">💳 Kích hoạt tài khoản mới</h3>
           <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap;">
             <input type="email" id="admin-new-email" placeholder="email khách đã thanh toán..."
               class="form-input" style="flex:1;font-size:13px;">
@@ -3018,7 +3018,7 @@ async function renderAdmin() {
 
         <!-- Hoạt động gần đây -->
         <div class="settings-card" style="margin-top:16px;">
-          <h3 style="font-family:'DM Serif Display',serif;font-size:18px;margin-bottom:14px;">📊 Hoạt động gần đây</h3>
+          <h3 style="font-family:var(--font-sans);font-size:17px;font-weight:600;margin-bottom:14px;">📊 Hoạt động gần đây</h3>
           <div style="font-size:13px;">
             ${(aData||[]).slice(0,20).map(e => `
               <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border);">
