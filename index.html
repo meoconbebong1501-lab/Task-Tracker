@@ -2146,9 +2146,13 @@ async function saveTask() {
       savedTask = data;
       tasks = tasks.map(t => t.id === editingTaskId ? { ...t, ...payload } : t);
 
-      // Nếu deadline thay đổi → clear reminded để nhắc lại đúng mốc mới
+      // Nếu deadline thay đổi → clear tất cả reminded để nhắc lại đúng mốc mới
       if (oldTask?.deadline !== payload.deadline) {
         _reminded.clear(editingTaskId);
+        // Clear thêm các key dạng mới _tf_r_{id}_{minutes}
+        [10080, 1440, 60, 30, 15, 5].forEach(m => {
+          localStorage.removeItem(`_tf_r_${editingTaskId}_${m}`);
+        });
       }
 
       if (userSettings.notify_status && status_prev && status_prev !== payload.status) {
@@ -2190,6 +2194,7 @@ async function deleteTask(id) {
     const t = tasks.find(x => x.id === id);
     await sb.from('tasks').delete().eq('id', id).eq('user_id', currentUser.id);
     _reminded.clear(id);
+    [10080, 1440, 60, 30, 15, 5].forEach(m => localStorage.removeItem(`_tf_r_${id}_${m}`));
     tasks = tasks.filter(x => x.id !== id);
     updateStats();
     renderCurrentView();
@@ -2234,11 +2239,12 @@ function openTaskModal(taskId) {
     document.getElementById('task-deadline').value = '';
     document.getElementById('task-tag').value = '';
     document.getElementById('task-tag-color').value = '#4e8c62';
-    if (document.getElementById('task-repeat')) document.getElementById('task-repeat').value = 'none';
+    const repeatEl = document.getElementById('task-repeat');
+    if (repeatEl) repeatEl.value = 'none';
     document.querySelectorAll('.tag-color-dot').forEach((d,i) => d.classList.toggle('active', i===0));
     const preview = document.getElementById('tag-preview');
     if (preview) preview.style.display = 'none';
-    toggleRepeatDays();
+    toggleRepeatDays(); // gọi sau khi đã set repeat = none
     setRepeatDayChips([]);
     setReminderChips([60, 15]);
   }
