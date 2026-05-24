@@ -459,8 +459,17 @@
   }
   .btn-save:hover { background: var(--forest-mid); }
 
+  /* ── PROGRESS RING ── */
+  .progress-ring-card { display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .progress-ring-wrap { position: relative; width: 80px; height: 80px; }
+  .progress-ring-text {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    font-size: 15px; font-weight: 700; color: var(--forest);
+  }
+  #stat-progress-pct { font-size: 14px; font-weight: 700; }
+
   /* ── STATS BAR ── */
-  .stats-bar { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 24px; }
+  .stats-bar { display: grid; grid-template-columns: auto repeat(4, 1fr); gap: 14px; margin-bottom: 24px; }
   .stat-card {
     background: white; border-radius: var(--radius); border: 1px solid var(--border);
     padding: 16px 20px;
@@ -691,7 +700,9 @@
     .content { padding: 14px 14px 60px; }
 
     /* Stats */
-    .stats-bar { grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 16px; }
+    .stats-bar { grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px; }
+    .progress-ring-card { grid-column: 1 / -1; flex-direction: row; gap: 16px; justify-content: flex-start; }
+    .progress-ring-card .stat-label { margin-top: 0; }
     .stat-card { padding: 12px 14px; }
     .stat-value { font-size: 22px; }
     .stat-label { font-size: 10px; }
@@ -1001,6 +1012,25 @@
 
     <!-- Stats Bar -->
     <div class="stats-bar" id="stats-bar">
+      <!-- Progress Ring -->
+      <div class="stat-card progress-ring-card">
+        <div class="progress-ring-wrap">
+          <svg width="80" height="80" viewBox="0 0 80 80">
+            <circle cx="40" cy="40" r="32" fill="none" stroke="var(--cream-dark)" stroke-width="7"/>
+            <circle id="progress-ring-circle" cx="40" cy="40" r="32" fill="none"
+              stroke="var(--moss)" stroke-width="7"
+              stroke-linecap="round"
+              stroke-dasharray="201" stroke-dashoffset="201"
+              transform="rotate(-90 40 40)"
+              style="transition: stroke-dashoffset 0.6s ease;"/>
+          </svg>
+          <div class="progress-ring-text">
+            <span id="stat-progress-pct">0%</span>
+          </div>
+        </div>
+        <div class="stat-label" style="margin-top:8px;">Overall Progress</div>
+        <div class="stat-sub" id="stat-progress-msg">Bắt đầu thôi!</div>
+      </div>
       <div class="stat-card">
         <div class="stat-label">Tổng công việc</div>
         <div class="stat-value" id="stat-total">0</div>
@@ -2654,10 +2684,43 @@ function closeDayDetail() {
 // ── STATS ──────────────────────────────────────────────
 function updateStats() {
   const now = new Date();
-  document.getElementById('stat-total').textContent = tasks.length;
-  document.getElementById('stat-inprogress').textContent = tasks.filter(t => t.status === 'inprogress').length;
-  document.getElementById('stat-done').textContent = tasks.filter(t => t.status === 'done').length;
-  document.getElementById('stat-overdue').textContent = tasks.filter(t => t.deadline && new Date(t.deadline) < now && t.status !== 'done').length;
+  const total = tasks.length;
+  const done = tasks.filter(t => t.status === 'done').length;
+  const inprogress = tasks.filter(t => t.status === 'inprogress').length;
+  const overdue = tasks.filter(t => t.deadline && new Date(t.deadline) < now && t.status !== 'done').length;
+  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+
+  document.getElementById('stat-total').textContent = total;
+  document.getElementById('stat-inprogress').textContent = inprogress;
+  document.getElementById('stat-done').textContent = done;
+  document.getElementById('stat-overdue').textContent = overdue;
+
+  // Progress ring
+  const circle = document.getElementById('progress-ring-circle');
+  const circumference = 201; // 2 * π * 32
+  const offset = circumference - (pct / 100) * circumference;
+  if (circle) {
+    circle.style.strokeDashoffset = offset;
+    // Đổi màu theo % hoàn thành
+    circle.style.stroke = pct >= 80 ? '#4e8c62' : pct >= 50 ? '#d4843a' : pct >= 25 ? '#2563eb' : '#8ab89a';
+  }
+  const pctEl = document.getElementById('stat-progress-pct');
+  if (pctEl) pctEl.textContent = pct + '%';
+
+  // Câu động viên
+  const msgEl = document.getElementById('stat-progress-msg');
+  if (msgEl) {
+    const msgs = {
+      0:  'Bắt đầu thôi! 💪',
+      25: 'Đang tiến triển! 🚀',
+      50: 'Nửa đường rồi! ⚡',
+      75: 'Sắp xong rồi! 🔥',
+      90: 'Gần hoàn thành! ✨',
+      100:'Xuất sắc! 🎉',
+    };
+    const key = pct === 100 ? 100 : pct >= 90 ? 90 : pct >= 75 ? 75 : pct >= 50 ? 50 : pct >= 25 ? 25 : 0;
+    msgEl.textContent = msgs[key];
+  }
 }
 
 // ── HELPERS ───────────────────────────────────────────
