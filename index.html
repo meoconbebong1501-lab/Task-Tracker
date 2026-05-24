@@ -2250,11 +2250,20 @@ async function saveTask() {
         if (repeatDays.length > 1) {
           const baseDate = new Date(payload.deadline);
           const baseDay = baseDate.getDay(); // 0=CN, 1=T2...
+
           for (const day of repeatDays) {
             if (day === baseDay) continue; // bỏ qua ngày đã tạo
-            const diff = (day - baseDay + 7) % 7;
+
+            // Tính khoảng cách ngày trong tuần — luôn lấy ngày gần nhất về phía trước hoặc sau
+            let diff = day - baseDay;
+            // Nếu diff < 0 → ngày đó đã qua trong tuần này → lấy tuần sau
+            // Nếu diff > 0 → ngày đó chưa đến → lấy trong tuần này
+            if (diff < 0) diff += 7;
+
             const nextDate = new Date(baseDate);
             nextDate.setDate(baseDate.getDate() + diff);
+            nextDate.setHours(baseDate.getHours(), baseDate.getMinutes(), 0, 0);
+
             const extraPayload = {
               ...payload,
               deadline: nextDate.toISOString(),
@@ -2263,7 +2272,7 @@ async function saveTask() {
             const { data: extraData } = await sb.from('tasks').insert(extraPayload).select().single();
             if (extraData) tasks.unshift(extraData);
           }
-          showToast(`✅ Đã tạo ${repeatDays.length} tasks cho ${repeatDays.length} ngày trong tuần`);
+          showToast(`✅ Đã tạo ${repeatDays.length} tasks cho ${repeatDays.length} ngày lặp lại`);
         }
       }
     }
