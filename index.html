@@ -2452,10 +2452,6 @@ function renderKanban() {
     } else {
       el.innerHTML = groups[status].map(t => taskCard(t)).join('');
     }
-    // Drag & drop events cho mỗi cột
-    el.ondragover = e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; el.classList.add('drag-over'); };
-    el.ondragleave = e => { if (!el.contains(e.relatedTarget)) el.classList.remove('drag-over'); };
-    el.ondrop = e => { e.preventDefault(); e.stopPropagation(); el.classList.remove('drag-over'); dropTask(status); };
   });
 }
 
@@ -2660,19 +2656,12 @@ function taskCard(t) {
   const tagHtml = t.tag ? `<span class="tag-badge" style="background:${t.tag_color||'#4e8c62'}">${esc(t.tag)}</span>` : '';
   const gcal = t.deadline ? `<a class="action-btn action-btn-gcal" href="${gcalLink(t)}" target="_blank" onclick="event.stopPropagation()" title="Thêm vào Google Calendar">📅</a>` : '';
 
-  // Nút chuyển trạng thái nhanh
   const nextStatus = t.status === 'todo' ? 'inprogress' : t.status === 'inprogress' ? 'done' : 'todo';
   const tickIcon = t.status === 'done' ? '↩️' : t.status === 'inprogress' ? '✅' : '▶️';
   const tickTitle = t.status === 'done' ? 'Chuyển về To Do' : t.status === 'inprogress' ? 'Đánh dấu Xong' : 'Bắt đầu làm';
   const tickClass = t.status === 'done' ? 'action-btn-tick-done' : t.status === 'inprogress' ? 'action-btn-tick-progress' : 'action-btn-tick-todo';
 
-  return `<div class="task-card" draggable="true" data-id="${t.id}"
-    ondragstart="dragStart(event,'${t.id}')"
-    ondragend="dragEnd(event)"
-    ontouchstart="touchStart(event,'${t.id}')"
-    ontouchmove="touchMove(event)"
-    ontouchend="touchEnd(event)"
-    onclick="cardClick('${t.id}')">
+  return `<div class="task-card" data-id="${t.id}" onclick="openTaskModal('${t.id}')">
     <div class="task-card-actions">
       ${gcal}
       <button class="action-btn action-btn-edit" onclick="event.stopPropagation();openTaskModal('${t.id}')" title="Chỉnh sửa">✎</button>
