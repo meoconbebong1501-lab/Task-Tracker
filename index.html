@@ -646,6 +646,20 @@
   .tag-color-dot.active { border-color: white; box-shadow: 0 0 0 2px var(--forest); transform: scale(1.15); }
   .tag-color-dot:hover { transform: scale(1.1); }
 
+  /* ── TICK BUTTON ── */
+  .tick-btn {
+    width: 32px; height: 32px; border-radius: 50%; border: 2px solid;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; cursor: pointer; flex-shrink: 0;
+    transition: all 0.2s; background: white;
+  }
+  .action-btn-tick-todo { border-color: var(--border-strong); color: var(--text-muted); }
+  .action-btn-tick-todo:hover { border-color: #2563eb; background: rgba(37,99,235,0.08); }
+  .action-btn-tick-progress { border-color: #2563eb; color: #2563eb; background: rgba(37,99,235,0.06); }
+  .action-btn-tick-progress:hover { border-color: var(--moss); background: rgba(78,140,98,0.1); }
+  .action-btn-tick-done { border-color: var(--moss); color: var(--moss); background: rgba(78,140,98,0.08); }
+  .action-btn-tick-done:hover { border-color: var(--border-strong); background: var(--cream-dark); }
+
   /* ── DRAG & DROP ── */
   .task-card[draggable="true"] { cursor: grab; -webkit-user-select: none; user-select: none; }
   .task-card[draggable="true"]:active { cursor: grabbing; }
@@ -2471,6 +2485,34 @@ function dragEnd(e) {
   setTimeout(() => { _dragMoved = false; }, 100);
 }
 
+async function quickChangeStatus(id, newStatus) {
+  const task = tasks.find(t => t.id === id);
+  if (!task || task.status === newStatus) return;
+  const oldStatus = task.status;
+  tasks = tasks.map(t => t.id === id ? { ...t, status: newStatus, updated_at: new Date().toISOString() } : t);
+  renderCurrentView();
+  updateStats();
+  try {
+    await sb.from('tasks').update({ status: newStatus, updated_at: new Date().toISOString() }).eq('id', id).eq('user_id', currentUser.id);
+    if (userSettings.notify_status) {
+      sendNotification('🔄 ' + task.title, `${statusLabel(oldStatus)} → ${statusLabel(newStatus)}`,
+        `🔄 *Task chuyển trạng thái*\n📌 ${task.title}\n${statusLabel(oldStatus)} → ${statusLabel(newStatus)}`);
+    }
+    if (newStatus === 'done') {
+      _reminded.clear(id);
+      [10080,1440,60,30,15,5].forEach(m => localStorage.removeItem(`_tf_r_${id}_${m}`));
+      const oldTask = tasks.find(t => t.id === id);
+      if (oldTask?.repeat_type && oldTask.repeat_type !== 'none') await handleRepeatTask({...oldTask, status: newStatus});
+      logAnalytics('task_done', { task_id: id });
+    }
+    const labels = { todo: '📋 To Do', inprogress: '🔄 Đang làm', done: '✅ Xong' };
+    showToast(`${labels[newStatus]}: ${task.title.slice(0,30)}${task.title.length>30?'...':''}`);
+  } catch(e) {
+    showToast('Lỗi cập nhật', 'error');
+    await loadTasks();
+  }
+}
+
 function cardClick(id) {
   if (_dragMoved) return;
   openTaskModal(id);
@@ -2617,6 +2659,13 @@ function taskCard(t) {
   const dl = deadlineBadge(t.deadline, t.status);
   const tagHtml = t.tag ? `<span class="tag-badge" style="background:${t.tag_color||'#4e8c62'}">${esc(t.tag)}</span>` : '';
   const gcal = t.deadline ? `<a class="action-btn action-btn-gcal" href="${gcalLink(t)}" target="_blank" onclick="event.stopPropagation()" title="Thêm vào Google Calendar">📅</a>` : '';
+
+  // Nút chuyển trạng thái nhanh
+  const nextStatus = t.status === 'todo' ? 'inprogress' : t.status === 'inprogress' ? 'done' : 'todo';
+  const tickIcon = t.status === 'done' ? '↩️' : t.status === 'inprogress' ? '✅' : '▶️';
+  const tickTitle = t.status === 'done' ? 'Chuyển về To Do' : t.status === 'inprogress' ? 'Đánh dấu Xong' : 'Bắt đầu làm';
+  const tickClass = t.status === 'done' ? 'action-btn-tick-done' : t.status === 'inprogress' ? 'action-btn-tick-progress' : 'action-btn-tick-todo';
+
   return `<div class="task-card" draggable="true" data-id="${t.id}"
     ondragstart="dragStart(event,'${t.id}')"
     ondragend="dragEnd(event)"
@@ -2626,14 +2675,21 @@ function taskCard(t) {
     onclick="cardClick('${t.id}')">
     <div class="task-card-actions">
       ${gcal}
-      <button class="action-btn action-btn-edit" onclick="event.stopPropagation();openTaskModal('${t.id}')">✎</button>
-      <button class="action-btn action-btn-del" onclick="event.stopPropagation();deleteTask('${t.id}')">✕</button>
+      <button class="action-btn action-btn-edit" onclick="event.stopPropagation();openTaskModal('${t.id}')" title="Chỉnh sửa">✎</button>
+      <button class="action-btn action-btn-del" onclick="event.stopPropagation();deleteTask('${t.id}')" title="Xoá">✕</button>
     </div>
-    <div class="task-card-title">${esc(t.title)}</div>
-    <div class="task-card-meta">
-      <span class="priority-badge priority-${t.priority}">${priorityLabel(t.priority)}</span>
-      ${tagHtml}
-      ${dl}
+    <div style="display:flex;align-items:flex-start;gap:10px;">
+      <button class="tick-btn ${tickClass}" onclick="event.stopPropagation();quickChangeStatus('${t.id}','${nextStatus}')" title="${tickTitle}">
+        ${tickIcon}
+      </button>
+      <div style="flex:1;min-width:0;">
+        <div class="task-card-title ${t.status==='done'?'done-text':''}">${esc(t.title)}</div>
+        <div class="task-card-meta">
+          <span class="priority-badge priority-${t.priority}">${priorityLabel(t.priority)}</span>
+          ${tagHtml}
+          ${dl}
+        </div>
+      </div>
     </div>
   </div>`;
 }
@@ -2643,9 +2699,13 @@ function renderList() {
   const ft = filteredTasks();
   const el = document.getElementById('task-list-container');
   if (ft.length === 0) { el.innerHTML = '<div style="text-align:center;padding:48px;color:var(--text-muted)">Không có task nào</div>'; return; }
-  el.innerHTML = ft.map(t => `
+  el.innerHTML = ft.map(t => {
+    const nextStatus = t.status === 'todo' ? 'inprogress' : t.status === 'inprogress' ? 'done' : 'todo';
+    const tickIcon = t.status === 'done' ? '↩️' : t.status === 'inprogress' ? '✅' : '▶️';
+    const tickClass = t.status === 'done' ? 'action-btn-tick-done' : t.status === 'inprogress' ? 'action-btn-tick-progress' : 'action-btn-tick-todo';
+    return `
     <div class="task-list-item" onclick="openTaskModal('${t.id}')">
-      <div class="task-list-status status-${t.status}"></div>
+      <button class="tick-btn ${tickClass}" onclick="event.stopPropagation();quickChangeStatus('${t.id}','${nextStatus}')" title="Chuyển trạng thái">${tickIcon}</button>
       <div class="task-list-title ${t.status === 'done' ? 'done-text' : ''}">${esc(t.title)}</div>
       <div class="task-list-meta">
         <span class="priority-badge priority-${t.priority}">${priorityLabel(t.priority)}</span>
@@ -2657,7 +2717,8 @@ function renderList() {
         <button class="action-btn action-btn-edit" onclick="event.stopPropagation();openTaskModal('${t.id}')">✎</button>
         <button class="action-btn action-btn-del" onclick="event.stopPropagation();deleteTask('${t.id}')">✕</button>
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 
 // ── CALENDAR ───────────────────────────────────────────
