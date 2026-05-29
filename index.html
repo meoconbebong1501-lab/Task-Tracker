@@ -312,7 +312,9 @@
     position: relative;
   }
   .task-card:hover { box-shadow: var(--shadow); transform: translateY(-1px); }
-  .task-card-title { font-size: 14px; font-weight: 500; color: var(--text); margin-bottom: 8px; line-height: 1.4; }
+  .task-card-title { font-size: 14px; font-weight: 500; color: var(--text); margin-bottom: 8px; line-height: 1.4; word-break: break-word; overflow-wrap: anywhere; }
+  /* Padding right cho div chứa title để không bị actions che */
+  .task-card-body { padding-right: 80px; }
   .task-card-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .priority-badge {
     padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; letter-spacing: 0.04em;
@@ -2671,7 +2673,7 @@ function taskCard(t) {
       <button class="tick-btn ${tickClass}" onclick="event.stopPropagation();quickChangeStatus('${t.id}','${nextStatus}')" title="${tickTitle}">
         ${tickIcon}
       </button>
-      <div style="flex:1;min-width:0;">
+      <div class="task-card-body" style="flex:1;min-width:0;">
         <div class="task-card-title ${t.status==='done'?'done-text':''}">${esc(t.title)}</div>
         <div class="task-card-meta">
           <span class="priority-badge priority-${t.priority}">${priorityLabel(t.priority)}</span>
