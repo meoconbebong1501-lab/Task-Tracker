@@ -314,7 +314,7 @@
   .task-card:hover { box-shadow: var(--shadow); transform: translateY(-1px); }
   .task-card-title { font-size: 14px; font-weight: 500; color: var(--text); margin-bottom: 8px; line-height: 1.4; word-break: break-word; overflow-wrap: anywhere; }
   /* Padding right cho div chứa title để không bị actions che */
-  .task-card-body { padding-right: 80px; }
+  .task-card-body { padding-right: 96px; }
   .task-card-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .priority-badge {
     padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; letter-spacing: 0.04em;
@@ -738,7 +738,10 @@
     .kanban-cards { padding: 10px; gap: 8px; }
     .task-card { padding: 12px 14px; }
     .task-card-title { font-size: 13px; }
-    .task-card-actions { opacity: 1; } /* Luôn hiện trên mobile */
+  @media (hover: none), (max-width: 600px) {
+    .task-card-actions { opacity: 1; }
+    .task-card-body { padding-right: 100px; }
+  }
     .action-btn { width: 30px; height: 30px; font-size: 15px; }
 
     /* List view */
