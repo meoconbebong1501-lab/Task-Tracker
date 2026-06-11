@@ -2475,11 +2475,24 @@ function renderKanban() {
   // Task thường có deadline tương lai (không lặp) vẫn hiện bình thường trên Kanban
   const now = new Date();
   const endOfToday = new Date(now); endOfToday.setHours(23,59,59,999);
+
+  // Tìm task gần nhất (chưa done) của mỗi nhóm lặp — để fallback nếu cả nhóm đều ở tương lai
+  const nearestPerGroup = {};
+  ft.forEach(t => {
+    if (!t.repeat_group_id || !t.deadline || t.status === 'done') return;
+    const gid = t.repeat_group_id;
+    if (!nearestPerGroup[gid] || new Date(t.deadline) < new Date(nearestPerGroup[gid].deadline)) {
+      nearestPerGroup[gid] = t;
+    }
+  });
+
   const kanbanTasks = ft.filter(t => {
     if (!t.deadline) return true;
     if (t.status === 'done') return true;
-    // Nếu là task tương lai VÀ thuộc nhóm lặp lại → ẩn khỏi Kanban
-    if (t.repeat_group_id && new Date(t.deadline) > endOfToday) return false;
+    if (t.repeat_group_id && new Date(t.deadline) > endOfToday) {
+      // Vẫn hiện nếu đây là task gần nhất của nhóm (fallback khi cả nhóm đều ở tương lai)
+      return nearestPerGroup[t.repeat_group_id]?.id === t.id;
+    }
     return true;
   });
   const futureCount = ft.length - kanbanTasks.length;
