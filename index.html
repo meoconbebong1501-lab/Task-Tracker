@@ -2471,14 +2471,16 @@ function renderCurrentView() {
 function renderKanban() {
   const ft = filteredTasks();
 
-  // Lọc: chỉ hiện task không có deadline, hoặc deadline <= cuối ngày hôm nay (hôm nay + quá hạn)
-  // Task tương lai (thường là từ repeat lặp lại) sẽ ẩn khỏi Kanban, vẫn hiện ở Calendar/List
+  // Chỉ ẩn task tương lai NẾU task đó thuộc nhóm lặp lại (repeat_group_id tồn tại)
+  // Task thường có deadline tương lai (không lặp) vẫn hiện bình thường trên Kanban
   const now = new Date();
   const endOfToday = new Date(now); endOfToday.setHours(23,59,59,999);
   const kanbanTasks = ft.filter(t => {
     if (!t.deadline) return true;
-    if (t.status === 'done') return true; // task đã done luôn hiện (để user thấy đã xong)
-    return new Date(t.deadline) <= endOfToday;
+    if (t.status === 'done') return true;
+    // Nếu là task tương lai VÀ thuộc nhóm lặp lại → ẩn khỏi Kanban
+    if (t.repeat_group_id && new Date(t.deadline) > endOfToday) return false;
+    return true;
   });
   const futureCount = ft.length - kanbanTasks.length;
 
