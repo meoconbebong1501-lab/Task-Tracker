@@ -2315,6 +2315,10 @@ async function saveTask() {
         }
       }
     }
+    // Lưu tag vào lịch sử để không bị mất khi không còn task nào dùng
+    if (payload.tag) {
+      await saveTagToHistory(payload.tag, payload.tag_color);
+    }
     updateStats();
     renderCurrentView();
     closeTaskModal();
@@ -2455,6 +2459,7 @@ function renderKanban() {
   const ft = filteredTasks();
   const groups = { todo: [], inprogress: [], done: [] };
   ft.forEach(t => { if (groups[t.status]) groups[t.status].push(t); else groups.todo.push(t); });
+  const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
   ['todo', 'inprogress', 'done'].forEach(status => {
     const el = document.getElementById('col-' + status + '-cards');
     document.getElementById('count-' + status).textContent = groups[status].length;
@@ -2462,6 +2467,12 @@ function renderKanban() {
       el.innerHTML = '<div class="kanban-empty">Không có task nào</div>';
     } else {
       el.innerHTML = groups[status].map(t => taskCard(t)).join('');
+    }
+    // Drag & drop chỉ trên desktop (không phải touch device)
+    if (!isTouchDevice) {
+      el.ondragover = e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; el.classList.add('drag-over'); };
+      el.ondragleave = e => { if (!el.contains(e.relatedTarget)) el.classList.remove('drag-over'); };
+      el.ondrop = e => { e.preventDefault(); e.stopPropagation(); el.classList.remove('drag-over'); dropTask(status); };
     }
   });
 }
@@ -2672,7 +2683,10 @@ function taskCard(t) {
   const tickTitle = t.status === 'done' ? 'Chuyển về To Do' : t.status === 'inprogress' ? 'Đánh dấu Xong' : 'Bắt đầu làm';
   const tickClass = t.status === 'done' ? 'action-btn-tick-done' : t.status === 'inprogress' ? 'action-btn-tick-progress' : 'action-btn-tick-todo';
 
-  return `<div class="task-card" data-id="${t.id}" onclick="openTaskModal('${t.id}')">
+  return `<div class="task-card" data-id="${t.id}" draggable="true"
+    ondragstart="dragStart(event,'${t.id}')"
+    ondragend="dragEnd(event)"
+    onclick="cardClick('${t.id}')">
     <div class="task-card-actions">
       ${gcal}
       <button class="action-btn action-btn-edit" onclick="event.stopPropagation();openTaskModal('${t.id}')" title="Chỉnh sửa">✎</button>
@@ -2883,11 +2897,44 @@ function updateTagPreview() {
 
 // Lấy danh sách tag đã dùng từ tasks (có màu kèm theo)
 function getSavedTags() {
+  // Lấy tags đã lưu từ user_settings (persistent) + tags từ tasks hiện tại
   const tagMap = {};
+  // Tags đã lưu trước đó
+  try {
+    const saved = JSON.parse(userSettings.saved_tags || '[]');
+    saved.forEach(t => { tagMap[t.name] = t.color; });
+  } catch(e) {}
+  // Tags từ tasks hiện tại (override nếu trùng tên với màu mới nhất)
   tasks.forEach(t => {
     if (t.tag) tagMap[t.tag] = t.tag_color || '#4e8c62';
   });
   return Object.entries(tagMap).map(([name, color]) => ({ name, color }));
+}
+
+async function saveTagToHistory(name, color) {
+  if (!name) return;
+  try {
+    const saved = JSON.parse(userSettings.saved_tags || '[]');
+    const existing = saved.findIndex(t => t.name === name);
+    if (existing >= 0) {
+      saved[existing].color = color;
+    } else {
+      saved.push({ name, color });
+    }
+    userSettings.saved_tags = JSON.stringify(saved);
+    await sb.from('user_settings').update({ saved_tags: userSettings.saved_tags }).eq('user_id', currentUser.id);
+  } catch(e) {}
+}
+
+async function deleteTagFromHistory(name) {
+  try {
+    const saved = JSON.parse(userSettings.saved_tags || '[]');
+    const filtered = saved.filter(t => t.name !== name);
+    userSettings.saved_tags = JSON.stringify(filtered);
+    await sb.from('user_settings').update({ saved_tags: userSettings.saved_tags }).eq('user_id', currentUser.id);
+    showToast(`🗑 Đã xoá tag "${name}" khỏi danh sách`);
+    filterTagSuggestions(document.getElementById('task-tag')?.value || '');
+  } catch(e) {}
 }
 
 function showTagSuggestions() {
@@ -2904,11 +2951,13 @@ function filterTagSuggestions(val) {
   if (filtered.length === 0) { box.style.display = 'none'; return; }
   box.style.display = 'block';
   box.innerHTML = filtered.map(t => `
-    <div onclick="selectTag('${esc(t.name)}','${t.color}')"
-      style="display:flex;align-items:center;gap:8px;padding:8px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--border);"
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--border);"
       onmouseover="this.style.background='var(--cream-dark)'"
       onmouseout="this.style.background=''">
-      <span class="tag-badge" style="background:${t.color}">${esc(t.name)}</span>
+      <span onclick="selectTag('${esc(t.name)}','${t.color}')" style="flex:1;">
+        <span class="tag-badge" style="background:${t.color}">${esc(t.name)}</span>
+      </span>
+      <button onmousedown="event.preventDefault();deleteTagFromHistory('${esc(t.name)}')" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:14px;padding:2px 6px;line-height:1;" title="Xoá tag khỏi danh sách">✕</button>
     </div>`).join('');
 }
 
