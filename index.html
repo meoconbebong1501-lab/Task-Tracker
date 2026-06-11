@@ -668,6 +668,13 @@
   .action-btn-tick-done { border-color: var(--moss); color: var(--moss); background: rgba(78,140,98,0.08); }
   .action-btn-tick-done:hover { border-color: var(--border-strong); background: var(--cream-dark); }
 
+  .kanban-future-notice {
+    background: rgba(37,99,235,0.06); border: 1px solid rgba(37,99,235,0.15);
+    border-radius: var(--radius); padding: 10px 16px; margin-bottom: 14px;
+    font-size: 13px; color: #2563eb; cursor: pointer; transition: background 0.15s;
+  }
+  .kanban-future-notice:hover { background: rgba(37,99,235,0.1); }
+
   /* ── DRAG & DROP ── */
   .task-card[draggable="true"] { cursor: grab; -webkit-user-select: none; user-select: none; }
   .task-card[draggable="true"]:active { cursor: grabbing; }
@@ -1088,6 +1095,9 @@
         <button class="btn-add" onclick="openTaskModal()">＋ Thêm task</button>
       </div>
     </div>
+
+    <!-- Notice: future repeat tasks hidden from Kanban -->
+    <div id="kanban-future-notice" class="kanban-future-notice" style="display:none;" onclick="switchView('calendar')"></div>
 
     <!-- Filter Panel -->
     <div id="filter-panel" class="filter-panel hidden">
@@ -2445,6 +2455,9 @@ function switchView(view) {
   if (view === 'settings') loadUserSettings();
   if (view === 'admin') renderAdmin();
   else renderCurrentView();
+  // Ẩn notice khi không phải Kanban
+  const notice = document.getElementById('kanban-future-notice');
+  if (notice && view !== 'kanban') notice.style.display = 'none';
 }
 
 function renderCurrentView() {
@@ -2457,8 +2470,20 @@ function renderCurrentView() {
 // ── KANBAN ─────────────────────────────────────────────
 function renderKanban() {
   const ft = filteredTasks();
+
+  // Lọc: chỉ hiện task không có deadline, hoặc deadline <= cuối ngày hôm nay (hôm nay + quá hạn)
+  // Task tương lai (thường là từ repeat lặp lại) sẽ ẩn khỏi Kanban, vẫn hiện ở Calendar/List
+  const now = new Date();
+  const endOfToday = new Date(now); endOfToday.setHours(23,59,59,999);
+  const kanbanTasks = ft.filter(t => {
+    if (!t.deadline) return true;
+    if (t.status === 'done') return true; // task đã done luôn hiện (để user thấy đã xong)
+    return new Date(t.deadline) <= endOfToday;
+  });
+  const futureCount = ft.length - kanbanTasks.length;
+
   const groups = { todo: [], inprogress: [], done: [] };
-  ft.forEach(t => { if (groups[t.status]) groups[t.status].push(t); else groups.todo.push(t); });
+  kanbanTasks.forEach(t => { if (groups[t.status]) groups[t.status].push(t); else groups.todo.push(t); });
   const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
   ['todo', 'inprogress', 'done'].forEach(status => {
     const el = document.getElementById('col-' + status + '-cards');
@@ -2475,6 +2500,17 @@ function renderKanban() {
       el.ondrop = e => { e.preventDefault(); e.stopPropagation(); el.classList.remove('drag-over'); dropTask(status); };
     }
   });
+
+  // Hiện thông báo nếu có task tương lai bị ẩn
+  const noticeEl = document.getElementById('kanban-future-notice');
+  if (noticeEl) {
+    if (futureCount > 0) {
+      noticeEl.style.display = 'block';
+      noticeEl.textContent = `📅 ${futureCount} task lặp lại trong tương lai — xem tại tab Lịch hoặc Danh sách`;
+    } else {
+      noticeEl.style.display = 'none';
+    }
+  }
 }
 
 // ── DRAG & DROP (Desktop + Mobile Touch) ──────────────
