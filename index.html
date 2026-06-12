@@ -2247,6 +2247,26 @@ async function saveTask() {
      (repeatType === 'weekly' && repeatDays.length > 0));
   const groupId = needsGroup ? `grp_${Date.now()}_${Math.random().toString(36).slice(2,7)}` : null;
   if (groupId) payload.repeat_group_id = groupId;
+
+  // Nếu edit task đang thuộc nhóm lặp, và user đổi repeat_type về 'none'
+  // → hỏi có muốn xoá các task tương lai khác trong nhóm không
+  let removeGroupFromOthers = false;
+  if (editingTaskId) {
+    const oldTask = tasks.find(t => t.id === editingTaskId);
+    if (oldTask?.repeat_group_id && repeatType === 'none') {
+      const groupCount = tasks.filter(t => t.repeat_group_id === oldTask.repeat_group_id && t.id !== editingTaskId).length;
+      if (groupCount > 0) {
+        removeGroupFromOthers = confirm(
+          `Task này đang thuộc nhóm lặp lại (còn ${groupCount} task khác trong tương lai).\n\n` +
+          `Nhấn OK để XOÁ ${groupCount} task tương lai còn lại trong nhóm.\n` +
+          `Nhấn Cancel để chỉ tách task này ra, giữ nguyên các task khác.`
+        );
+      }
+      // Tách task này ra khỏi nhóm
+      payload.repeat_group_id = null;
+    }
+  }
+
   try {
     let savedTask;
     if (editingTaskId) {
@@ -2276,6 +2296,18 @@ async function saveTask() {
           }
           logAnalytics('task_done', { task_id: editingTaskId });
         }
+      }
+
+      // Xoá các task tương lai còn lại trong nhóm nếu user chọn
+      if (removeGroupFromOthers && oldTask?.repeat_group_id) {
+        const groupIds = tasks.filter(t => t.repeat_group_id === oldTask.repeat_group_id && t.id !== editingTaskId).map(t => t.id);
+        await sb.from('tasks').delete().eq('repeat_group_id', oldTask.repeat_group_id).eq('user_id', currentUser.id).neq('id', editingTaskId);
+        groupIds.forEach(gid => {
+          _reminded.clear(gid);
+          [10080,1440,60,30,15,5].forEach(m => localStorage.removeItem(`_tf_r_${gid}_${m}`));
+        });
+        tasks = tasks.filter(t => !(t.repeat_group_id === oldTask.repeat_group_id && t.id !== editingTaskId));
+        showToast(`🗑 Đã xoá ${groupIds.length} task tương lai trong nhóm`);
       }
     } else {
       payload.created_at = new Date().toISOString();
