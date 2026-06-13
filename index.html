@@ -1216,11 +1216,25 @@
             <div class="toggle" id="toggle-telegram" onclick="toggleTelegram()"></div>
           </div>
           <div id="telegram-setup-panel" style="display:none;width:100%;margin-top:12px;padding:14px;background:var(--cream-dark);border-radius:8px;">
-            <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px;line-height:1.8;">
-              👉 Mở Telegram → Tìm <strong>@userinfobot</strong> → Gửi <code>/start</code> → Copy dãy số ID nhận được → Dán vào ô bên dưới.
+            <!-- Cách dễ: bấm nút, mở Telegram, bấm Start -->
+            <div style="margin-bottom:14px;">
+              <div style="font-size:13px;font-weight:600;color:var(--forest);margin-bottom:8px;">⚡ Cách nhanh nhất</div>
+              <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px;line-height:1.7;">
+                Bấm nút dưới → Telegram mở ra → bấm <strong>START</strong> → xong! Chat ID sẽ được tự động lưu.
+              </div>
+              <button class="btn-save" id="btn-connect-telegram" onclick="connectTelegram()" style="width:100%;">
+                🔗 Kết nối Telegram
+              </button>
+              <div id="tg-connect-status" style="font-size:12px;margin-top:8px;display:none;"></div>
             </div>
-            <input type="text" class="form-input" id="settings-tg-id" placeholder="Dán Chat ID vào đây (VD: 123456789)" style="font-size:13px;">
-            <button class="btn-cancel" onclick="openTgGuide()" style="margin-top:10px;font-size:12px;">📖 Xem hướng dẫn từng bước chi tiết</button>
+
+            <div style="border-top:1px solid var(--border);padding-top:12px;">
+              <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px;line-height:1.8;">
+                Hoặc nhập tay: 👉 Mở Telegram → Tìm <strong>@userinfobot</strong> → Gửi <code>/start</code> → Copy dãy số ID nhận được → Dán vào ô bên dưới.
+              </div>
+              <input type="text" class="form-input" id="settings-tg-id" placeholder="Dán Chat ID vào đây (VD: 123456789)" style="font-size:13px;">
+              <button class="btn-cancel" onclick="openTgGuide()" style="margin-top:10px;font-size:12px;">📖 Xem hướng dẫn từng bước chi tiết</button>
+            </div>
           </div>
         </div>
       </div>
@@ -2085,7 +2099,59 @@ function toggleTelegram() {
   el.classList.toggle('on');
   const panel = document.getElementById('telegram-setup-panel');
   panel.style.display = el.classList.contains('on') ? 'block' : 'none';
-  if (el.classList.contains('on')) setTimeout(() => document.getElementById('settings-tg-id').focus(), 100);
+}
+
+// ── KẾT NỐI TELEGRAM 1 BẤM ─────────────────────────────
+async function connectTelegram() {
+  const btn = document.getElementById('btn-connect-telegram');
+  const statusEl = document.getElementById('tg-connect-status');
+  btn.disabled = true;
+  btn.textContent = '⏳ Đang tạo link...';
+
+  try {
+    // Tạo code ngẫu nhiên và lưu vào user_settings
+    const code = currentUser.id.replace(/-/g, '').slice(0, 12) + Math.random().toString(36).slice(2, 6);
+    await sb.from('user_settings').update({ telegram_link_code: code }).eq('user_id', currentUser.id);
+
+    // Mở Telegram với deep link /start <code>
+    const tgLink = `https://t.me/tasktracker01bot?start=${code}`;
+    window.open(tgLink, '_blank');
+
+    statusEl.style.display = 'block';
+    statusEl.style.color = 'var(--text-muted)';
+    statusEl.textContent = '⏳ Đang chờ bạn bấm START trên Telegram... (tự kiểm tra mỗi 3 giây)';
+    btn.textContent = '⏳ Đang chờ xác nhận...';
+
+    // Poll kiểm tra xem chat_id đã được lưu chưa (worker xử lý webhook)
+    let attempts = 0;
+    const poll = setInterval(async () => {
+      attempts++;
+      const { data } = await sb.from('user_settings').select('telegram_chat_id, notify_telegram').eq('user_id', currentUser.id).single();
+      if (data?.telegram_chat_id) {
+        clearInterval(poll);
+        userSettings.telegram_chat_id = data.telegram_chat_id;
+        userSettings.notify_telegram = true;
+        document.getElementById('settings-tg-id').value = data.telegram_chat_id;
+        setToggle('toggle-telegram', true);
+        statusEl.style.color = 'var(--moss)';
+        statusEl.textContent = '✅ Kết nối thành công! Bạn sẽ nhận thông báo trên Telegram.';
+        btn.textContent = '✅ Đã kết nối';
+        showToast('✅ Telegram đã kết nối thành công!');
+      } else if (attempts >= 40) { // 40 * 3s = 2 phút
+        clearInterval(poll);
+        statusEl.style.color = 'var(--amber)';
+        statusEl.textContent = '⚠️ Chưa nhận được xác nhận. Đảm bảo bạn đã bấm START trong Telegram, hoặc dùng cách nhập tay bên dưới.';
+        btn.disabled = false;
+        btn.textContent = '🔗 Kết nối Telegram';
+      }
+    }, 3000);
+  } catch(e) {
+    statusEl.style.display = 'block';
+    statusEl.style.color = 'var(--red)';
+    statusEl.textContent = '❌ Lỗi: ' + e.message;
+    btn.disabled = false;
+    btn.textContent = '🔗 Kết nối Telegram';
+  }
 }
 
 function setToggle(id, val) {
