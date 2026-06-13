@@ -2089,6 +2089,27 @@ async function sendTelegramNotification(message) {
   } catch(e) {}
 }
 
+// ── EMAIL THÔNG BÁO GIAO VIỆC (qua Cloudflare Worker + Resend) ──
+async function sendAssignEmail(payload, assignerEmail) {
+  try {
+    await fetch('https://resend.meoconbebong1501.workers.dev/send-assign-email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        to: payload.assigned_email,
+        taskTitle: payload.title,
+        assignerEmail: assignerEmail,
+        deadline: payload.deadline ? formatDeadline(payload.deadline) : null,
+        priority: priorityLabel(payload.priority),
+        description: payload.description || null,
+      }),
+    });
+  } catch(e) {
+    // Không chặn flow nếu gửi email lỗi
+    console.error('Lỗi gửi email giao việc:', e);
+  }
+}
+
 // ── SEND ALL CHANNELS ─────────────────────────────────
 async function sendNotification(title, body, telegramMsg) {
   if (userSettings.notify_push) sendBrowserNotification('TaskFlow — ' + title, body);
@@ -2384,6 +2405,12 @@ async function saveTask() {
         });
       }
 
+      // Nếu mới giao việc (trước đó chưa giao, giờ có assigned_to mới) → gửi email
+      if (payload.assigned_to && oldTask?.assigned_to !== payload.assigned_to) {
+        showToast(`📨 Đã giao task cho ${payload.assigned_email} — đang gửi email thông báo...`);
+        sendAssignEmail(payload, currentUser.email);
+      }
+
       if (userSettings.notify_status && status_prev && status_prev !== payload.status) {
         const msg = `Task đổi trạng thái: ${statusLabel(status_prev)} → ${statusLabel(payload.status)}`;
         sendNotification('🔄 ' + title, msg, `🔄 *Task cập nhật trạng thái*\n📌 ${title}\n${statusLabel(status_prev)} → ${statusLabel(payload.status)}`);
@@ -2420,7 +2447,8 @@ async function saveTask() {
       }
       logAnalytics('task_created', { title });
       if (payload.assigned_to) {
-        showToast(`📨 Đã giao task cho ${payload.assigned_email} — họ sẽ thấy task này khi mở app`);
+        showToast(`📨 Đã giao task cho ${payload.assigned_email} — đang gửi email thông báo...`);
+        sendAssignEmail(payload, currentUser.email);
       }
 
       // Tạo các task lặp lại cho các ngày tiếp theo
