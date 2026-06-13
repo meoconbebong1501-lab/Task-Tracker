@@ -1705,6 +1705,25 @@ async function showApp() {
   switchView('kanban');
   scheduleDeadlineCheck();
   subscribeRealtimeTasks();
+  // Polling fallback: tự load lại task mỗi 15 giây để đảm bảo sync
+  // (phòng trường hợp Realtime không hoạt động đúng)
+  if (window._syncPollInterval) clearInterval(window._syncPollInterval);
+  window._syncPollInterval = setInterval(async () => {
+    if (document.visibilityState !== 'visible') return; // chỉ poll khi tab đang mở
+    const oldTasksMap = new Map(tasks.map(t => [t.id, t.status]));
+    await loadTasks();
+    // So sánh để hiện toast nếu có thay đổi từ người khác
+    tasks.forEach(t => {
+      const oldStatus = oldTasksMap.get(t.id);
+      if (oldStatus && oldStatus !== t.status) {
+        if (t.assigned_to && t.user_id === currentUser.id) {
+          showToast(`🔄 "${t.title}" → ${statusLabel(t.status)}`);
+        } else if (t.assigned_to === currentUser.id) {
+          showToast(`🔄 Task "${t.title}" đã chuyển → ${statusLabel(t.status)}`);
+        }
+      }
+    });
+  }, 15000);
   logAnalytics('login');
 }
 
