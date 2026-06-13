@@ -675,6 +675,13 @@
   }
   .kanban-future-notice:hover { background: rgba(37,99,235,0.1); }
 
+  .assign-badge {
+    font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 6px;
+    display: inline-flex; align-items: center; gap: 3px;
+  }
+  .assign-badge-out { background: rgba(37,99,235,0.1); color: #2563eb; }
+  .assign-badge-in { background: rgba(139,92,246,0.1); color: #8b5cf6; }
+
   /* ── DRAG & DROP ── */
   .task-card[draggable="true"] { cursor: grab; -webkit-user-select: none; user-select: none; }
   .task-card[draggable="true"]:active { cursor: grabbing; }
@@ -1342,6 +1349,19 @@
       </div>
       <input type="hidden" id="task-tag-color" value="#4e8c62">
     </div>
+
+    <!-- Giao việc cho người khác -->
+    <div class="form-group">
+      <label class="form-label">Giao cho (email — để trống nếu là việc của bạn)</label>
+      <div style="position:relative;">
+        <input type="email" class="form-input" id="task-assign-email"
+          placeholder="email@example.com"
+          oninput="onAssignEmailInput()"
+          autocomplete="off">
+        <div id="assign-status" style="font-size:12px;margin-top:4px;display:none;"></div>
+      </div>
+      <input type="hidden" id="task-assigned-to" value="">
+    </div>
     <div class="form-row">
       <div class="form-group">
         <label class="form-label">Lặp lại</label>
@@ -1884,6 +1904,58 @@ function toggleSetting(key) {
   if (el) el.classList.toggle('on');
 }
 
+let _assignDebounce = null;
+function onAssignEmailInput() {
+  const email = document.getElementById('task-assign-email').value.trim();
+  const statusEl = document.getElementById('assign-status');
+  const hiddenEl = document.getElementById('task-assigned-to');
+  hiddenEl.value = '';
+
+  if (!email) {
+    statusEl.style.display = 'none';
+    return;
+  }
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+  if (!emailRegex.test(email)) {
+    statusEl.style.display = 'block';
+    statusEl.style.color = 'var(--text-muted)';
+    statusEl.textContent = '';
+    return;
+  }
+
+  statusEl.style.display = 'block';
+  statusEl.style.color = 'var(--text-muted)';
+  statusEl.textContent = '🔍 Đang kiểm tra...';
+
+  clearTimeout(_assignDebounce);
+  _assignDebounce = setTimeout(async () => {
+    try {
+      const { data, error } = await sb.rpc('find_user_by_email', { p_email: email });
+      if (error) throw error;
+      if (data && data.length > 0) {
+        const found = data[0];
+        if (found.user_id === currentUser.id) {
+          statusEl.style.color = 'var(--amber)';
+          statusEl.textContent = '⚠️ Đây là email của bạn — để trống nếu là việc của bạn';
+          hiddenEl.value = '';
+        } else {
+          hiddenEl.value = found.user_id;
+          statusEl.style.color = 'var(--moss)';
+          statusEl.textContent = `✅ Tìm thấy user — task sẽ được giao cho ${found.email}`;
+        }
+      } else {
+        statusEl.style.color = 'var(--red)';
+        statusEl.textContent = '❌ Email này chưa có tài khoản TaskFlow';
+        hiddenEl.value = '';
+      }
+    } catch(e) {
+      statusEl.style.color = 'var(--red)';
+      statusEl.textContent = '❌ Lỗi kiểm tra email';
+    }
+  }, 500);
+}
+
 function toggleRepeatDays() {
   const repeat = document.getElementById('task-repeat')?.value;
   const group = document.getElementById('repeat-days-group');
@@ -2105,7 +2177,9 @@ function checkDeadlines() {
 // ── TASKS ─────────────────────────────────────────────
 async function loadTasks() {
   try {
-    const { data, error } = await sb.from('tasks').select('*').eq('user_id', currentUser.id).order('created_at', { ascending: false });
+    const { data, error } = await sb.from('tasks').select('*')
+      .or(`user_id.eq.${currentUser.id},assigned_to.eq.${currentUser.id}`)
+      .order('created_at', { ascending: false });
     if (error) throw error;
     tasks = data || [];
     await autoDeleteDoneTasks();
@@ -2120,6 +2194,7 @@ async function autoDeleteDoneTasks() {
   const now = new Date();
   const toDelete = tasks.filter(t => {
     if (t.status !== 'done') return false;
+    if (t.user_id !== currentUser.id) return false; // không tự xoá task của người khác giao cho mình
     const updatedAt = new Date(t.updated_at || t.created_at);
     return (now - updatedAt) >= 24 * 60 * 60 * 1000; // 24 tiếng
   });
@@ -2221,6 +2296,28 @@ async function saveTask() {
   const title = document.getElementById('task-title').value.trim();
   if (!title) { showToast('Vui lòng nhập tiêu đề task', 'error'); return; }
   const status_prev = editingTaskId ? tasks.find(t => t.id === editingTaskId)?.status : null;
+
+  // Nếu là task được giao cho mình (không phải chủ) → chỉ update status
+  const oldTaskForCheck = editingTaskId ? tasks.find(t => t.id === editingTaskId) : null;
+  if (oldTaskForCheck && oldTaskForCheck.user_id !== currentUser.id) {
+    const newStatus = document.getElementById('task-status').value;
+    try {
+      await sb.from('tasks').update({ status: newStatus, updated_at: new Date().toISOString() }).eq('id', editingTaskId);
+      tasks = tasks.map(t => t.id === editingTaskId ? { ...t, status: newStatus, updated_at: new Date().toISOString() } : t);
+      if (newStatus === 'done') {
+        _reminded.clear(editingTaskId);
+        [10080,1440,60,30,15,5].forEach(m => localStorage.removeItem(`_tf_r_${editingTaskId}_${m}`));
+      }
+      updateStats();
+      renderCurrentView();
+      closeTaskModal();
+      showToast('✅ Đã cập nhật trạng thái');
+    } catch(e) {
+      showToast('Lỗi cập nhật: ' + e.message, 'error');
+    }
+    return;
+  }
+
   // deadline-local → ISO string đúng timezone local (không convert sang UTC sai)
   const dlRaw = document.getElementById('task-deadline').value;
   const deadline = dlRaw ? new Date(dlRaw).toISOString() : null;
@@ -2236,6 +2333,9 @@ async function saveTask() {
     repeat_days: JSON.stringify(getSelectedRepeatDays()),
     reminders: JSON.stringify(getSelectedReminders()),
     deadline,
+    assigned_to: document.getElementById('task-assigned-to')?.value || null,
+    assigned_by: document.getElementById('task-assigned-to')?.value ? currentUser.id : null,
+    assigned_email: document.getElementById('task-assigned-to')?.value ? document.getElementById('task-assign-email').value.trim() : null,
     updated_at: new Date().toISOString(),
   };
 
@@ -2319,6 +2419,9 @@ async function saveTask() {
         sendNotification('✨ Task mới: ' + title, body, `✨ *Task mới được tạo*\n📌 ${title}\n${body}`);
       }
       logAnalytics('task_created', { title });
+      if (payload.assigned_to) {
+        showToast(`📨 Đã giao task cho ${payload.assigned_email} — họ sẽ thấy task này khi mở app`);
+      }
 
       // Tạo các task lặp lại cho các ngày tiếp theo
       if (groupId && deadline) {
@@ -2439,6 +2542,46 @@ function openTaskModal(taskId) {
     });
     document.getElementById('task-deadline').value = t.deadline ? toLocalDatetimeInput(t.deadline) : '';
     updateTagPreview();
+
+    // Hiện thông tin giao việc
+    const assignInput = document.getElementById('task-assign-email');
+    const assignStatus = document.getElementById('assign-status');
+    const assignHidden = document.getElementById('task-assigned-to');
+    if (t.assigned_to) {
+      assignHidden.value = t.assigned_to;
+      assignInput.value = t.assigned_email || '';
+      assignStatus.style.display = 'block';
+      assignStatus.style.color = 'var(--moss)';
+      assignStatus.textContent = `✅ Đã giao cho: ${t.assigned_email || 'user khác'}`;
+      assignInput.disabled = (t.user_id !== currentUser.id);
+    } else {
+      assignInput.value = '';
+      assignHidden.value = '';
+      assignStatus.style.display = 'none';
+      assignInput.disabled = (t.user_id !== currentUser.id);
+    }
+
+    // Nếu đây là task được giao cho mình (không phải chủ) → cảnh báo chỉ nên đổi trạng thái
+    const notOwner = t.user_id !== currentUser.id;
+    document.querySelectorAll('#task-modal input, #task-modal textarea, #task-modal select').forEach(el => {
+      if (el.id === 'task-status') return; // status luôn cho phép đổi
+      if (el.id.startsWith('reminder') || el.name === 'reminder' || el.name === 'repeat-day') return;
+      el.disabled = notOwner;
+    });
+    const saveBtn = document.getElementById('modal-save-btn');
+    if (saveBtn) saveBtn.textContent = notOwner ? 'Cập nhật trạng thái' : (taskId ? 'Lưu task' : 'Lưu task');
+    let notice = document.getElementById('assign-readonly-notice');
+    if (notOwner) {
+      if (!notice) {
+        notice = document.createElement('div');
+        notice.id = 'assign-readonly-notice';
+        notice.style.cssText = 'background:rgba(139,92,246,0.08);border:1px solid rgba(139,92,246,0.2);border-radius:var(--radius);padding:10px 14px;font-size:13px;color:#8b5cf6;margin-bottom:14px;';
+        notice.textContent = '📨 Task này được giao cho bạn — bạn chỉ có thể thay đổi trạng thái (Trạng thái).';
+        document.getElementById('task-title').closest('.form-group').parentElement.insertBefore(notice, document.getElementById('task-title').closest('.form-group'));
+      }
+    } else if (notice) {
+      notice.remove();
+    }
   } else {
     document.getElementById('modal-title').textContent = 'Thêm task mới';
     document.getElementById('task-title').value = '';
@@ -2456,6 +2599,14 @@ function openTaskModal(taskId) {
     toggleRepeatDays(); // gọi sau khi đã set repeat = none
     setRepeatDayChips([]);
     setReminderChips([60, 15]);
+    document.getElementById('task-assign-email').value = '';
+    document.getElementById('task-assign-email').disabled = false;
+    document.getElementById('task-assigned-to').value = '';
+    document.getElementById('assign-status').style.display = 'none';
+    document.querySelectorAll('#task-modal input, #task-modal textarea, #task-modal select').forEach(el => el.disabled = false);
+    document.getElementById('modal-save-btn').textContent = 'Lưu task';
+    const notice = document.getElementById('assign-readonly-notice');
+    if (notice) notice.remove();
   }
   modal.classList.add('open');
   setTimeout(() => document.getElementById('task-title').focus(), 100);
@@ -2761,10 +2912,23 @@ function taskCard(t) {
   const tagHtml = t.tag ? `<span class="tag-badge" style="background:${t.tag_color||'#4e8c62'}">${esc(t.tag)}</span>` : '';
   const gcal = t.deadline ? `<a class="action-btn action-btn-gcal" href="${gcalLink(t)}" target="_blank" onclick="event.stopPropagation()" title="Thêm vào Google Calendar">📅</a>` : '';
 
+  // Badge giao việc
+  let assignBadge = '';
+  if (t.assigned_to && t.user_id === currentUser.id) {
+    // Mình giao cho người khác
+    assignBadge = `<span class="assign-badge assign-badge-out" title="Giao cho ${esc(t.assigned_email||'')}">👤 → ${esc((t.assigned_email||'').split('@')[0])}</span>`;
+  } else if (t.assigned_to === currentUser.id && t.user_id !== currentUser.id) {
+    // Được giao cho mình
+    assignBadge = `<span class="assign-badge assign-badge-in" title="Được giao việc">📨 Được giao</span>`;
+  }
+
   const nextStatus = t.status === 'todo' ? 'inprogress' : t.status === 'inprogress' ? 'done' : 'todo';
   const tickIcon = t.status === 'done' ? '↩️' : t.status === 'inprogress' ? '✅' : '▶️';
   const tickTitle = t.status === 'done' ? 'Chuyển về To Do' : t.status === 'inprogress' ? 'Đánh dấu Xong' : 'Bắt đầu làm';
   const tickClass = t.status === 'done' ? 'action-btn-tick-done' : t.status === 'inprogress' ? 'action-btn-tick-progress' : 'action-btn-tick-todo';
+
+  // Người được giao không xoá được task, chỉ chủ task mới xoá
+  const canDelete = t.user_id === currentUser.id;
 
   return `<div class="task-card" data-id="${t.id}" draggable="true"
     ondragstart="dragStart(event,'${t.id}')"
@@ -2773,7 +2937,7 @@ function taskCard(t) {
     <div class="task-card-actions">
       ${gcal}
       <button class="action-btn action-btn-edit" onclick="event.stopPropagation();openTaskModal('${t.id}')" title="Chỉnh sửa">✎</button>
-      <button class="action-btn action-btn-del" onclick="event.stopPropagation();deleteTask('${t.id}')" title="Xoá">✕</button>
+      ${canDelete ? `<button class="action-btn action-btn-del" onclick="event.stopPropagation();deleteTask('${t.id}')" title="Xoá">✕</button>` : ''}
     </div>
     <div style="display:flex;align-items:flex-start;gap:10px;">
       <button class="tick-btn ${tickClass}" onclick="event.stopPropagation();quickChangeStatus('${t.id}','${nextStatus}')" title="${tickTitle}">
@@ -2785,6 +2949,7 @@ function taskCard(t) {
         <div class="task-card-meta">
           <span class="priority-badge priority-${t.priority}">${priorityLabel(t.priority)}</span>
           ${tagHtml}
+          ${assignBadge}
           ${dl}
         </div>
       </div>
