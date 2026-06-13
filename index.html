@@ -682,6 +682,13 @@
   .assign-badge-out { background: rgba(37,99,235,0.1); color: #2563eb; }
   .assign-badge-in { background: rgba(139,92,246,0.1); color: #8b5cf6; }
 
+  .drive-link-badge {
+    font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 6px;
+    background: rgba(66,133,244,0.1); color: #4285f4; text-decoration: none;
+    display: inline-flex; align-items: center; gap: 3px;
+  }
+  .drive-link-badge:hover { background: rgba(66,133,244,0.18); }
+
   /* ── DRAG & DROP ── */
   .task-card[draggable="true"] { cursor: grab; -webkit-user-select: none; user-select: none; }
   .task-card[draggable="true"]:active { cursor: grabbing; }
@@ -1365,6 +1372,13 @@
       </div>
       <input type="hidden" id="task-assigned-to" value="">
     </div>
+
+    <!-- Link Drive (tùy chọn, có thể nhiều) -->
+    <div class="form-group">
+      <label class="form-label">🔗 Link Drive / Tài liệu (tùy chọn)</label>
+      <div id="drive-links-list" style="display:flex;flex-direction:column;gap:8px;"></div>
+      <button type="button" class="btn-cancel" style="margin-top:8px;font-size:13px;padding:8px 14px;" onclick="addDriveLinkInput()">＋ Thêm link</button>
+    </div>
     <div class="form-row">
       <div class="form-group">
         <label class="form-label">Lặp lại</label>
@@ -1964,6 +1978,30 @@ function toggleSetting(key) {
   if (el) el.classList.toggle('on');
 }
 
+// ── DRIVE LINKS ───────────────────────────────────────
+function addDriveLinkInput(value = '') {
+  const list = document.getElementById('drive-links-list');
+  const row = document.createElement('div');
+  row.style.cssText = 'display:flex;gap:6px;align-items:center;';
+  row.innerHTML = `
+    <input type="url" class="form-input drive-link-input" placeholder="https://drive.google.com/..." value="${esc(value)}" style="flex:1;">
+    <button type="button" onclick="this.parentElement.remove()" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:16px;padding:6px 8px;line-height:1;" title="Xoá link">✕</button>
+  `;
+  list.appendChild(row);
+}
+
+function getDriveLinks() {
+  return [...document.querySelectorAll('.drive-link-input')]
+    .map(el => el.value.trim())
+    .filter(v => v.length > 0);
+}
+
+function setDriveLinks(links = []) {
+  const list = document.getElementById('drive-links-list');
+  list.innerHTML = '';
+  links.forEach(link => addDriveLinkInput(link));
+}
+
 let _assignDebounce = null;
 function onAssignEmailInput() {
   const email = document.getElementById('task-assign-email').value.trim();
@@ -2451,6 +2489,7 @@ async function saveTask() {
     assigned_to: document.getElementById('task-assigned-to')?.value || null,
     assigned_by: document.getElementById('task-assigned-to')?.value ? currentUser.id : null,
     assigned_email: document.getElementById('task-assigned-to')?.value ? document.getElementById('task-assign-email').value.trim() : null,
+    drive_links: JSON.stringify(getDriveLinks()),
     updated_at: new Date().toISOString(),
   };
 
@@ -2665,6 +2704,11 @@ function openTaskModal(taskId) {
     document.getElementById('task-deadline').value = t.deadline ? toLocalDatetimeInput(t.deadline) : '';
     updateTagPreview();
 
+    // Load drive links
+    try {
+      setDriveLinks(t.drive_links ? JSON.parse(t.drive_links) : []);
+    } catch(e) { setDriveLinks([]); }
+
     // Hiện thông tin giao việc
     const assignInput = document.getElementById('task-assign-email');
     const assignStatus = document.getElementById('assign-status');
@@ -2729,6 +2773,7 @@ function openTaskModal(taskId) {
     document.getElementById('modal-save-btn').textContent = 'Lưu task';
     const notice = document.getElementById('assign-readonly-notice');
     if (notice) notice.remove();
+    setDriveLinks([]);
   }
   modal.classList.add('open');
   setTimeout(() => document.getElementById('task-title').focus(), 100);
@@ -3077,6 +3122,17 @@ function taskCard(t) {
   // Người được giao không xoá được task, chỉ chủ task mới xoá
   const canDelete = t.user_id === currentUser.id;
 
+  // Drive links
+  let driveLinksHtml = '';
+  try {
+    const links = t.drive_links ? JSON.parse(t.drive_links) : [];
+    if (links.length > 0) {
+      driveLinksHtml = links.map((url, i) =>
+        `<a href="${esc(url)}" target="_blank" onclick="event.stopPropagation()" class="drive-link-badge" title="${esc(url)}">🔗 Link ${links.length > 1 ? i+1 : ''}</a>`
+      ).join('');
+    }
+  } catch(e) {}
+
   return `<div class="task-card" data-id="${t.id}" draggable="true"
     ondragstart="dragStart(event,'${t.id}')"
     ondragend="dragEnd(event)"
@@ -3098,6 +3154,7 @@ function taskCard(t) {
           ${tagHtml}
           ${assignBadge}
           ${dl}
+          ${driveLinksHtml}
         </div>
       </div>
     </div>
@@ -3214,6 +3271,7 @@ function openDayDetail(dateKey) {
           ${t.tag ? `<span class="tag-badge" style="background:${t.tag_color||'#4e8c62'}">${esc(t.tag)}</span>` : ''}
           <span style="font-size:11px;padding:2px 8px;border-radius:4px;background:${t.status==='done'?'rgba(78,140,98,0.12)':t.status==='inprogress'?'rgba(37,99,235,0.1)':'rgba(212,132,58,0.12)'};color:${t.status==='done'?'var(--moss)':t.status==='inprogress'?'#2563eb':'var(--amber)'};">${statusLabel(t.status)}</span>
           ${t.deadline ? `<a href="${gcalLink(t)}" target="_blank" onclick="event.stopPropagation()" style="font-size:11px;padding:2px 8px;border-radius:4px;background:rgba(66,133,244,0.1);color:#4285f4;text-decoration:none;">📅 Google Cal</a>` : ''}
+          ${(() => { try { const links = t.drive_links ? JSON.parse(t.drive_links) : []; return links.map((url,i) => `<a href="${esc(url)}" target="_blank" onclick="event.stopPropagation()" class="drive-link-badge">🔗 Link ${links.length>1?i+1:''}</a>`).join(''); } catch(e) { return ''; } })()}
         </div>
         ${t.description ? `<div style="font-size:12px;color:var(--text-muted);margin-top:6px;">${esc(t.description)}</div>` : ''}
       </div>`).join('');
