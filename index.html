@@ -1257,6 +1257,9 @@
             <div class="settings-row-sub" id="settings-email-display"></div>
           </div>
         </div>
+        <div id="member-only-banner" style="display:none;margin-top:14px;background:rgba(139,92,246,0.08);border:1px solid rgba(139,92,246,0.2);border-radius:var(--radius);padding:12px 14px;font-size:13px;color:#8b5cf6;">
+          ✨ Bạn đang dùng <strong>bản miễn phí</strong> (được mời qua việc giao task). Bạn có thể tạo tối đa <strong>3 task riêng/tháng</strong>. Liên hệ Hỗ trợ để nâng cấp lên không giới hạn — 150k/lifetime.
+        </div>
         <div style="margin-top:18px;">
           <button class="btn-cancel" onclick="logout()">Đăng xuất</button>
         </div>
@@ -1491,7 +1494,7 @@ let sb, currentUser, tasks = [], userSettings = {
   notify_status: true,
   notify_deadline: true,
 };
-let editingTaskId = null, currentView = 'kanban', calendarDate = new Date();
+let editingTaskId = null, currentView = 'kanban', calendarDate = new Date(), isMemberOnly = false;
 
 // ── FORGOT PASSWORD ───────────────────────────────────
 function showForgot() {
@@ -1663,6 +1666,13 @@ async function showApp() {
   // Hiện nút Admin nếu là admin
   const adminBtn = document.getElementById('nav-admin');
   if (adminBtn) adminBtn.style.display = isAdmin() ? 'block' : 'none';
+  // Kiểm tra member-only (được giao việc miễn phí, giới hạn tạo task riêng)
+  isMemberOnly = false;
+  try {
+    const { data } = await sb.rpc('get_my_member_status');
+    isMemberOnly = !!data;
+  } catch(e) {}
+
   await loadTasks();
   switchView('kanban');
   scheduleDeadlineCheck();
@@ -2380,6 +2390,20 @@ async function saveTask() {
   if (!title) { showToast('Vui lòng nhập tiêu đề task', 'error'); return; }
   const status_prev = editingTaskId ? tasks.find(t => t.id === editingTaskId)?.status : null;
 
+  // Giới hạn member miễn phí: tối đa 3 task riêng (do họ tự tạo) / tháng
+  if (!editingTaskId && isMemberOnly) {
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const ownTasksThisMonth = tasks.filter(t =>
+      t.user_id === currentUser.id &&
+      new Date(t.created_at) >= startOfMonth
+    ).length;
+    if (ownTasksThisMonth >= 3) {
+      showToast('⚠️ Bạn đang dùng bản miễn phí — giới hạn 3 task tự tạo/tháng. Nâng cấp để tạo không giới hạn!', 'error', 6000);
+      return;
+    }
+  }
+
   // Nếu là task được giao cho mình (không phải chủ) → chỉ update status
   const oldTaskForCheck = editingTaskId ? tasks.find(t => t.id === editingTaskId) : null;
   if (oldTaskForCheck && oldTaskForCheck.user_id !== currentUser.id) {
@@ -2733,7 +2757,11 @@ function switchView(view) {
   document.getElementById('stats-bar').style.display = (view === 'settings' || view === 'admin') ? 'none' : '';
   const toolbarRight = document.querySelector('.toolbar-right');
   toolbarRight.style.display = (view === 'settings' || view === 'admin') ? 'none' : 'flex';
-  if (view === 'settings') loadUserSettings();
+  if (view === 'settings') {
+    loadUserSettings();
+    const banner = document.getElementById('member-only-banner');
+    if (banner) banner.style.display = isMemberOnly ? 'block' : 'none';
+  }
   if (view === 'admin') renderAdmin();
   else renderCurrentView();
   // Ẩn notice khi không phải Kanban
