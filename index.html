@@ -2220,6 +2220,35 @@ async function sendAssignEmail(payload, assignerEmail) {
   }
 }
 
+// ── TELEGRAM CHO NGƯỜI ĐƯỢC GIAO ─────────────────────
+async function sendAssignTelegram(payload, assignerEmail) {
+  try {
+    const { data, error } = await sb.rpc('get_assignee_telegram', { p_user_id: payload.assigned_to });
+    if (error || !data || data.length === 0) return;
+    const info = data[0];
+    if (!info.notify_telegram || !info.chat_id) return;
+
+    const token = info.bot_token || DEFAULT_BOT_TOKEN;
+    const lines = [
+      `📨 *Bạn được giao việc mới*`,
+      `📌 ${payload.title}`,
+    ];
+    if (payload.description) lines.push(`📝 ${payload.description}`);
+    lines.push(`⚡ Độ ưu tiên: ${priorityLabel(payload.priority)}`);
+    if (payload.deadline) lines.push(`🗓 Deadline: ${formatDeadline(payload.deadline)}`);
+    lines.push(`👤 Giao bởi: ${assignerEmail}`);
+
+    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: info.chat_id, text: lines.join('\n'), parse_mode: 'Markdown' }),
+    });
+  } catch(e) {
+    console.error('Lỗi gửi Telegram cho người được giao:', e);
+  }
+}
+
+
 // ── SEND ALL CHANNELS ─────────────────────────────────
 async function sendNotification(title, body, telegramMsg) {
   if (userSettings.notify_push) sendBrowserNotification('TaskFlow — ' + title, body);
@@ -2540,8 +2569,9 @@ async function saveTask() {
 
       // Nếu mới giao việc (trước đó chưa giao, giờ có assigned_to mới) → gửi email
       if (payload.assigned_to && oldTask?.assigned_to !== payload.assigned_to) {
-        showToast(`📨 Đã giao task cho ${payload.assigned_email} — đang gửi email thông báo...`);
+        showToast(`📨 Đã giao task cho ${payload.assigned_email} — đang gửi thông báo...`);
         sendAssignEmail(payload, currentUser.email);
+        sendAssignTelegram(payload, currentUser.email);
       }
 
       if (userSettings.notify_status && status_prev && status_prev !== payload.status) {
@@ -2580,8 +2610,9 @@ async function saveTask() {
       }
       logAnalytics('task_created', { title });
       if (payload.assigned_to) {
-        showToast(`📨 Đã giao task cho ${payload.assigned_email} — đang gửi email thông báo...`);
+        showToast(`📨 Đã giao task cho ${payload.assigned_email} — đang gửi thông báo...`);
         sendAssignEmail(payload, currentUser.email);
+        sendAssignTelegram(payload, currentUser.email);
       }
 
       // Tạo các task lặp lại cho các ngày tiếp theo
