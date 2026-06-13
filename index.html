@@ -1666,7 +1666,57 @@ async function showApp() {
   await loadTasks();
   switchView('kanban');
   scheduleDeadlineCheck();
+  subscribeRealtimeTasks();
   logAnalytics('login');
+}
+
+// ── REALTIME: sync task khi người khác (chủ/người được giao) thay đổi ──
+function subscribeRealtimeTasks() {
+  if (!sb || !currentUser) return;
+  // Huỷ channel cũ nếu có
+  if (window._taskChannel) { sb.removeChannel(window._taskChannel); }
+
+  window._taskChannel = sb.channel('tasks-realtime')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, (payload) => {
+      const row = payload.new || payload.old;
+      // Chỉ xử lý nếu task liên quan đến mình (chủ hoặc được giao)
+      if (!row) return;
+      const related = row.user_id === currentUser.id || row.assigned_to === currentUser.id;
+      if (!related) return;
+
+      if (payload.eventType === 'INSERT') {
+        if (!tasks.find(t => t.id === row.id)) {
+          tasks.unshift(row);
+          if (row.assigned_to === currentUser.id && row.user_id !== currentUser.id) {
+            showToast(`📨 Bạn được giao task mới: ${row.title}`);
+          }
+        }
+      } else if (payload.eventType === 'UPDATE') {
+        const idx = tasks.findIndex(t => t.id === row.id);
+        const oldRow = payload.old;
+        if (idx >= 0) {
+          // Thông báo nếu trạng thái thay đổi do người khác
+          if (oldRow && oldRow.status !== row.status) {
+            const isOwner = row.user_id === currentUser.id;
+            const otherParty = isOwner ? row.assigned_email : null;
+            if (isOwner && row.assigned_to) {
+              showToast(`🔄 ${otherParty || 'Người được giao'} đã chuyển "${row.title}" → ${statusLabel(row.status)}`);
+            } else if (!isOwner) {
+              showToast(`🔄 Task "${row.title}" đã chuyển → ${statusLabel(row.status)}`);
+            }
+          }
+          tasks[idx] = row;
+        } else {
+          tasks.unshift(row);
+        }
+      } else if (payload.eventType === 'DELETE') {
+        tasks = tasks.filter(t => t.id !== row.id);
+      }
+
+      updateStats();
+      renderCurrentView();
+    })
+    .subscribe();
 }
 
 function togglePass(inputId, btn) {
@@ -2089,6 +2139,18 @@ async function sendTelegramNotification(message) {
   } catch(e) {}
 }
 
+async function sendStatusEmail(toEmail, taskTitle, changedByEmail, oldStatus, newStatus) {
+  try {
+    await fetch('https://resend.meoconbebong1501.workers.dev/send-status-email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ to: toEmail, taskTitle, changedByEmail, oldStatus, newStatus }),
+    });
+  } catch(e) {
+    console.error('Lỗi gửi email cập nhật trạng thái:', e);
+  }
+}
+
 // ── EMAIL THÔNG BÁO GIAO VIỆC (qua Cloudflare Worker + Resend) ──
 async function sendAssignEmail(payload, assignerEmail) {
   try {
@@ -2322,12 +2384,20 @@ async function saveTask() {
   const oldTaskForCheck = editingTaskId ? tasks.find(t => t.id === editingTaskId) : null;
   if (oldTaskForCheck && oldTaskForCheck.user_id !== currentUser.id) {
     const newStatus = document.getElementById('task-status').value;
+    const oldStatus = oldTaskForCheck.status;
     try {
       await sb.from('tasks').update({ status: newStatus, updated_at: new Date().toISOString() }).eq('id', editingTaskId);
       tasks = tasks.map(t => t.id === editingTaskId ? { ...t, status: newStatus, updated_at: new Date().toISOString() } : t);
       if (newStatus === 'done') {
         _reminded.clear(editingTaskId);
         [10080,1440,60,30,15,5].forEach(m => localStorage.removeItem(`_tf_r_${editingTaskId}_${m}`));
+      }
+      // Báo cho chủ task qua email nếu trạng thái thay đổi
+      if (oldStatus !== newStatus) {
+        try {
+          const { data } = await sb.rpc('get_user_email', { p_user_id: oldTaskForCheck.user_id });
+          if (data) sendStatusEmail(data, oldTaskForCheck.title, currentUser.email, oldStatus, newStatus);
+        } catch(e) {}
       }
       updateStats();
       renderCurrentView();
@@ -2769,20 +2839,41 @@ async function quickChangeStatus(id, newStatus) {
   const task = tasks.find(t => t.id === id);
   if (!task || task.status === newStatus) return;
   const oldStatus = task.status;
+  const isOwner = task.user_id === currentUser.id;
   tasks = tasks.map(t => t.id === id ? { ...t, status: newStatus, updated_at: new Date().toISOString() } : t);
   renderCurrentView();
   updateStats();
   try {
-    await sb.from('tasks').update({ status: newStatus, updated_at: new Date().toISOString() }).eq('id', id).eq('user_id', currentUser.id);
-    if (userSettings.notify_status) {
+    // Cho phép update nếu là chủ task HOẶC người được giao
+    let query = sb.from('tasks').update({ status: newStatus, updated_at: new Date().toISOString() }).eq('id', id);
+    await query;
+
+    if (userSettings.notify_status && isOwner) {
       sendNotification('🔄 ' + task.title, `${statusLabel(oldStatus)} → ${statusLabel(newStatus)}`,
         `🔄 *Task chuyển trạng thái*\n📌 ${task.title}\n${statusLabel(oldStatus)} → ${statusLabel(newStatus)}`);
     }
+
+    // Gửi email cho phía còn lại nếu task có giao việc
+    if (task.assigned_to) {
+      const recipientEmail = isOwner ? task.assigned_email : null; // nếu mình là chủ → báo cho người được giao
+      const fetchOwnerEmail = !isOwner; // nếu mình là người được giao → cần lấy email chủ task
+
+      if (recipientEmail) {
+        sendStatusEmail(recipientEmail, task.title, currentUser.email, oldStatus, newStatus);
+      } else if (fetchOwnerEmail) {
+        // Lấy email chủ task qua RPC (vì client không query trực tiếp auth.users)
+        try {
+          const { data } = await sb.rpc('get_user_email', { p_user_id: task.user_id });
+          if (data) sendStatusEmail(data, task.title, currentUser.email, oldStatus, newStatus);
+        } catch(e) {}
+      }
+    }
+
     if (newStatus === 'done') {
       _reminded.clear(id);
       [10080,1440,60,30,15,5].forEach(m => localStorage.removeItem(`_tf_r_${id}_${m}`));
       const oldTask = tasks.find(t => t.id === id);
-      if (oldTask?.repeat_type && oldTask.repeat_type !== 'none') await handleRepeatTask({...oldTask, status: newStatus});
+      if (isOwner && oldTask?.repeat_type && oldTask.repeat_type !== 'none') await handleRepeatTask({...oldTask, status: newStatus});
       logAnalytics('task_done', { task_id: id });
     }
     const labels = { todo: '📋 To Do', inprogress: '🔄 Đang làm', done: '✅ Xong' };
