@@ -1038,6 +1038,7 @@
       <button class="nav-btn active" id="nav-kanban" onclick="switchView('kanban')">Kanban</button>
       <button class="nav-btn" id="nav-calendar" onclick="switchView('calendar')">Lịch</button>
       <button class="nav-btn" id="nav-list" onclick="switchView('list')">Danh sách</button>
+      <button class="nav-btn" id="nav-archive" onclick="switchView('archive')">📦 Lưu trữ</button>
       <button class="nav-btn" id="nav-settings" onclick="switchView('settings')">Cài đặt</button>
       <button class="nav-btn" id="nav-admin" onclick="switchView('admin')" style="display:none;">⚙️ Admin</button>
     </div>
@@ -1185,6 +1186,11 @@
     <!-- List View -->
     <div id="list-view">
       <div class="task-list" id="task-list-container"></div>
+    </div>
+
+    <!-- Archive View -->
+    <div id="archive-view" style="display:none;">
+      <div class="task-list" id="archive-list-container"></div>
     </div>
 
     <!-- Settings View -->
@@ -2427,7 +2433,7 @@ async function loadTasks() {
       .order('created_at', { ascending: false });
     if (error) throw error;
     tasks = data || [];
-    await autoDeleteDoneTasks();
+    await autoArchiveDoneTasks();
     updateStats();
     renderCurrentView();
   } catch(e) {
@@ -2435,22 +2441,58 @@ async function loadTasks() {
   }
 }
 
-async function autoDeleteDoneTasks() {
+async function autoArchiveDoneTasks() {
   const now = new Date();
-  const toDelete = tasks.filter(t => {
+  const toArchive = tasks.filter(t => {
     if (t.status !== 'done') return false;
-    if (t.user_id !== currentUser.id) return false; // không tự xoá task của người khác giao cho mình
+    if (t.archived) return false;
+    // Áp dụng cho cả task của mình và task được giao cho mình
+    const isOwnerOrAssignee = t.user_id === currentUser.id || t.assigned_to === currentUser.id;
+    if (!isOwnerOrAssignee) return false;
     const updatedAt = new Date(t.updated_at || t.created_at);
     return (now - updatedAt) >= 24 * 60 * 60 * 1000; // 24 tiếng
   });
-  if (toDelete.length === 0) return;
-  const ids = toDelete.map(t => t.id);
-  try {
-    await sb.from('tasks').delete().in('id', ids).eq('user_id', currentUser.id);
-    ids.forEach(id => _reminded.clear(id));
-    tasks = tasks.filter(t => !ids.includes(t.id));
-    showToast(`🗑 Đã tự xoá ${toDelete.length} task hoàn thành quá 24 giờ`);
-  } catch(e) {}
+  if (toArchive.length > 0) {
+    const ids = toArchive.map(t => t.id);
+    try {
+      await sb.from('tasks').update({ archived: true, archived_at: new Date().toISOString() }).in('id', ids);
+      ids.forEach(id => _reminded.clear(id));
+      tasks = tasks.map(t => ids.includes(t.id) ? { ...t, archived: true, archived_at: new Date().toISOString() } : t);
+      showToast(`📦 Đã lưu trữ ${toArchive.length} task hoàn thành quá 24 giờ`);
+    } catch(e) {}
+  }
+
+  // Xoá vĩnh viễn task đã lưu trữ quá 3 tháng (90 ngày) — áp dụng cả task của mình và task được giao cho mình
+  const threeMonthsAgo = new Date(now);
+  threeMonthsAgo.setDate(now.getDate() - 90);
+  const toPurge = tasks.filter(t => {
+    if (!t.archived) return false;
+    const isOwnerOrAssignee = t.user_id === currentUser.id || t.assigned_to === currentUser.id;
+    if (!isOwnerOrAssignee) return false;
+    const archivedAt = new Date(t.archived_at || t.updated_at);
+    return archivedAt < threeMonthsAgo;
+  });
+  if (toPurge.length > 0) {
+    // RLS chỉ cho phép user_id (chủ task) xoá — phần task được giao cho mình (không phải chủ)
+    // sẽ tự bị xoá khi chính chủ task của họ mở app và chạy hàm này.
+    const ownIds = toPurge.filter(t => t.user_id === currentUser.id).map(t => t.id);
+    if (ownIds.length > 0) {
+      try {
+        await sb.from('tasks').delete().in('id', ownIds).eq('user_id', currentUser.id);
+        ownIds.forEach(id => {
+          _reminded.clear(id);
+          [10080,1440,60,30,15,5].forEach(m => localStorage.removeItem(`_tf_r_${id}_${m}`));
+        });
+        tasks = tasks.filter(t => !ownIds.includes(t.id));
+        showToast(`🗑 Đã xoá vĩnh viễn ${ownIds.length} task lưu trữ quá 3 tháng`);
+      } catch(e) {}
+    }
+    // Task được giao cho mình (không phải chủ) chỉ ẩn khỏi local state, chờ chủ task xoá thật
+    const assignedOnlyIds = toPurge.filter(t => t.user_id !== currentUser.id).map(t => t.id);
+    if (assignedOnlyIds.length > 0) {
+      tasks = tasks.filter(t => !assignedOnlyIds.includes(t.id));
+    }
+  }
 }
 
 function getActiveFilters() {
@@ -2514,6 +2556,7 @@ function filteredTasks() {
   const endOfWeek = new Date(now); endOfWeek.setDate(now.getDate() + (7 - now.getDay()));
 
   const filtered = tasks.filter(t => {
+    if (t.archived) return false; // task đã lưu trữ không hiện ở view chính
     if (search && !t.title.toLowerCase().includes(search) && !(t.description||'').toLowerCase().includes(search) && !(t.tag||'').toLowerCase().includes(search)) return false;
     if (priorities.length > 0 && !priorities.includes(t.priority)) return false;
     if (tagFilters.length > 0 && !tagFilters.includes(t.tag)) return false;
@@ -2907,15 +2950,15 @@ document.getElementById('task-modal').addEventListener('click', e => {
 // ── VIEWS ─────────────────────────────────────────────
 function switchView(view) {
   currentView = view;
-  ['kanban', 'calendar', 'list', 'settings', 'admin'].forEach(v => {
+  ['kanban', 'calendar', 'list', 'archive', 'settings', 'admin'].forEach(v => {
     const el = document.getElementById(v + '-view');
     if (el) el.style.display = v === view ? 'block' : 'none';
     const nav = document.getElementById('nav-' + v);
     if (nav) nav.classList.toggle('active', v === view);
   });
-  const titles = { kanban: 'Kanban Board', calendar: 'Lịch Công Việc', list: 'Danh Sách', settings: 'Cài Đặt', admin: 'Admin' };
+  const titles = { kanban: 'Kanban Board', calendar: 'Lịch Công Việc', list: 'Danh Sách', archive: '📦 Đã Lưu Trữ', settings: 'Cài Đặt', admin: 'Admin' };
   document.getElementById('view-title').textContent = titles[view] || '';
-  document.getElementById('stats-bar').style.display = (view === 'settings' || view === 'admin') ? 'none' : '';
+  document.getElementById('stats-bar').style.display = (view === 'settings' || view === 'admin' || view === 'archive') ? 'none' : '';
   const toolbarRight = document.querySelector('.toolbar-right');
   toolbarRight.style.display = (view === 'settings' || view === 'admin') ? 'none' : 'flex';
   if (view === 'settings') {
@@ -2934,7 +2977,56 @@ function renderCurrentView() {
   if (currentView === 'kanban') renderKanban();
   else if (currentView === 'calendar') renderCalendar();
   else if (currentView === 'list') renderList();
+  else if (currentView === 'archive') renderArchive();
   else if (currentView === 'settings') loadUserSettings();
+}
+
+// ── ARCHIVE VIEW ───────────────────────────────────────
+function renderArchive() {
+  const archivedTasks = tasks.filter(t => t.archived).sort((a, b) =>
+    new Date(b.archived_at || b.updated_at) - new Date(a.archived_at || a.updated_at)
+  );
+  const el = document.getElementById('archive-list-container');
+
+  const notice = `<div style="background:rgba(212,132,58,0.08);border:1px solid rgba(212,132,58,0.2);border-radius:var(--radius);padding:10px 14px;font-size:12px;color:var(--amber);margin-bottom:14px;">
+    ⏳ Task lưu trữ quá <strong>3 tháng</strong> sẽ tự động bị xoá vĩnh viễn. Khôi phục sớm nếu cần giữ lại.
+  </div>`;
+
+  if (archivedTasks.length === 0) {
+    el.innerHTML = notice + '<div class="kanban-empty" style="padding:40px;text-align:center;">📦 Chưa có task nào được lưu trữ.<br><span style="font-size:12px;color:var(--text-muted);">Task hoàn thành sẽ tự chuyển vào đây sau 24 giờ.</span></div>';
+    return;
+  }
+  el.innerHTML = notice + archivedTasks.map(t => {
+    const archivedAt = new Date(t.archived_at || t.updated_at);
+    const daysLeft = 90 - Math.floor((new Date() - archivedAt) / (24*60*60*1000));
+    return `
+    <div class="task-list-item" onclick="openTaskModal('${t.id}')" style="opacity:0.85;">
+      <span style="font-size:16px;">📦</span>
+      <div class="task-list-title done-text">${esc(t.title)}</div>
+      <div class="task-list-meta">
+        <span class="priority-badge priority-${t.priority}">${priorityLabel(t.priority)}</span>
+        ${t.tag ? `<span class="tag-badge" style="background:${t.tag_color||'#4e8c62'}">${esc(t.tag)}</span>` : ''}
+        <span style="font-size:12px;color:var(--text-muted)">Lưu trữ: ${formatDeadline(t.archived_at || t.updated_at)}</span>
+        <span style="font-size:11px;color:${daysLeft<=14?'var(--red)':'var(--text-muted)'};">⏳ Còn ${daysLeft > 0 ? daysLeft : 0} ngày</span>
+      </div>
+      <div class="task-list-actions">
+        <button class="action-btn" onclick="event.stopPropagation();unarchiveTask('${t.id}')" title="Khôi phục">↩️</button>
+        <button class="action-btn action-btn-del" onclick="event.stopPropagation();deleteTask('${t.id}')" title="Xoá vĩnh viễn">✕</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function unarchiveTask(id) {
+  try {
+    await sb.from('tasks').update({ archived: false, archived_at: null }).eq('id', id);
+    tasks = tasks.map(t => t.id === id ? { ...t, archived: false, archived_at: null } : t);
+    renderArchive();
+    updateStats();
+    showToast('↩️ Đã khôi phục task');
+  } catch(e) {
+    showToast('Lỗi khôi phục task', 'error');
+  }
 }
 
 // ── KANBAN ─────────────────────────────────────────────
