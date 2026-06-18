@@ -7,6 +7,9 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#1a2e22">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" type="image/png" href="icon-192.png">
 <title>TaskFlow v1.3.0 — Quản lý công việc</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
@@ -1275,6 +1278,20 @@
         </div>
       </div>
 
+      <!-- Cài app -->
+      <div class="settings-card">
+        <h3>📲 Cài app trên điện thoại</h3>
+        <p style="font-size:13px;color:var(--text-muted);margin-bottom:14px;line-height:1.6;">
+          Cài TaskFlow như một app thật trên điện thoại — mở nhanh từ màn hình chính, không cần mở trình duyệt.
+        </p>
+        <button class="btn-save" id="btn-install-app" onclick="installApp()" style="display:none;align-items:center;gap:8px;justify-content:center;">
+          📲 Cài đặt TaskFlow
+        </button>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:10px;">
+          Nếu không thấy nút trên: mở menu trình duyệt (⋮) → chọn <strong>"Cài đặt ứng dụng"</strong> hoặc <strong>"Thêm vào màn hình chính"</strong>.
+        </div>
+      </div>
+
       <!-- Tài khoản -->
       <div class="settings-card">
         <h3>👤 Tài khoản</h3>
@@ -1675,6 +1692,45 @@ if (document.readyState === 'loading') {
 } else {
   initApp();
 }
+
+// ── PWA: ĐĂNG KÝ SERVICE WORKER ──
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+}
+
+// ── PWA: BẮT SỰ KIỆN INSTALL PROMPT ──
+let _deferredInstallPrompt = null;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  _deferredInstallPrompt = e;
+  const btn = document.getElementById('btn-install-app');
+  if (btn) btn.style.display = 'flex';
+});
+
+async function installApp() {
+  if (!_deferredInstallPrompt) {
+    showToast('App đã được cài hoặc trình duyệt không hỗ trợ. Trên Android: mở menu (⋮) → "Cài đặt ứng dụng".');
+    return;
+  }
+  _deferredInstallPrompt.prompt();
+  const { outcome } = await _deferredInstallPrompt.userChoice;
+  if (outcome === 'accepted') {
+    showToast('✅ Đã cài TaskFlow vào máy!');
+    document.getElementById('btn-install-app').style.display = 'none';
+  }
+  _deferredInstallPrompt = null;
+}
+
+// Ẩn nút Install nếu app đã chạy ở chế độ standalone (đã cài rồi)
+window.addEventListener('DOMContentLoaded', () => {
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+  if (isStandalone) {
+    const btn = document.getElementById('btn-install-app');
+    if (btn) btn.style.display = 'none';
+  }
+});
 
 function hideLoading() {
   const ls = document.getElementById('loading-screen');
