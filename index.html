@@ -2338,6 +2338,11 @@ function sendBrowserNotification(title, body) {
     // Click vào notification → focus app
     n.onclick = () => { window.focus(); n.close(); };
   } catch(e) {}
+
+  // Gửi thêm qua Web Push thật — đảm bảo nhận được kể cả khi tắt app/browser
+  if (currentUser?.id) {
+    sendWebPushTo(currentUser.id, title, body);
+  }
 }
 
 // ── EMAIL NOTIFICATION ─────────────────────────────────
