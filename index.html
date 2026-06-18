@@ -1767,6 +1767,10 @@ async function showApp() {
   switchView('kanban');
   scheduleDeadlineCheck();
   subscribeRealtimeTasks();
+  // Nếu đã từng cấp quyền notification trước đó → đảm bảo push subscription vẫn còn active
+  if ('Notification' in window && Notification.permission === 'granted' && userSettings.notify_push) {
+    subscribeWebPush();
+  }
   // Polling fallback: tự load lại task mỗi 15 giây để đảm bảo sync
   // (phòng trường hợp Realtime không hoạt động đúng)
   if (window._syncPollInterval) clearInterval(window._syncPollInterval);
@@ -2264,6 +2268,37 @@ function updatePushButtonState() {
   }
 }
 
+const VAPID_PUBLIC_KEY = 'BLJNx2K5JuJtBc3JPYfk1gLARPma29JBnsd6VUPdidKMmyKv3qofV-kbnl6P4kE7uRgasPcR9ncu95sbtpcNdIY';
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) outputArray[i] = rawData.charCodeAt(i);
+  return outputArray;
+}
+
+// Đăng ký Push Subscription thật — hoạt động cả khi tắt app/browser
+async function subscribeWebPush() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) {
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+      });
+    }
+    // Lưu subscription vào Supabase
+    await sb.from('user_settings').update({ push_subscription: JSON.stringify(sub) }).eq('user_id', currentUser.id);
+    userSettings.push_subscription = JSON.stringify(sub);
+  } catch(e) {
+    console.error('Lỗi đăng ký push:', e);
+  }
+}
+
 async function setupBrowserPush() {
   if (!('Notification' in window)) {
     showToast('Trình duyệt không hỗ trợ thông báo', 'error'); return;
@@ -2275,10 +2310,11 @@ async function setupBrowserPush() {
   if (permission === 'granted') {
     userSettings.notify_push = true;
     await saveUserSettings();
+    await subscribeWebPush(); // đăng ký push subscription thật
     updatePushButtonState();
     // Test notification ngay lập tức
     setTimeout(() => {
-      sendBrowserNotification('✅ TaskFlow', 'Thông báo trình duyệt đã bật! Bạn sẽ nhận nhắc nhở deadline tại đây.');
+      sendBrowserNotification('✅ TaskFlow', 'Thông báo trình duyệt đã bật! Bạn sẽ nhận nhắc nhở deadline tại đây, kể cả khi tắt app.');
     }, 500);
     showToast('✅ Đã bật thông báo trình duyệt', 'success');
     // Bắt đầu check deadline ngay
@@ -2332,6 +2368,20 @@ async function sendTelegramNotification(message) {
       body: JSON.stringify({ chat_id: chatId, text: message, parse_mode: 'Markdown' })
     });
   } catch(e) {}
+}
+
+// ── WEB PUSH THẬT (qua Cloudflare Worker + VAPID) ──
+// Hoạt động cả khi user đã tắt browser/app
+async function sendWebPushTo(userId, title, message, pushUrl) {
+  try {
+    await fetch('https://taskflow-push.meoconbebong1501.workers.dev/send-push', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: userId, title, message, push_url: pushUrl || 'https://app.taskflow.com.vn' }),
+    });
+  } catch(e) {
+    console.error('Lỗi gửi web push:', e);
+  }
 }
 
 async function sendStatusEmail(toEmail, taskTitle, changedByEmail, oldStatus, newStatus) {
@@ -2756,6 +2806,7 @@ async function saveTask() {
         showToast(`📨 Đã giao task cho ${payload.assigned_email} — đang gửi thông báo...`);
         sendAssignEmail(payload, currentUser.email);
         sendAssignTelegram(payload, currentUser.email);
+        sendWebPushTo(payload.assigned_to, '📨 Bạn được giao việc mới', payload.title);
       }
 
       if (userSettings.notify_status && status_prev && status_prev !== payload.status) {
@@ -2797,6 +2848,7 @@ async function saveTask() {
         showToast(`📨 Đã giao task cho ${payload.assigned_email} — đang gửi thông báo...`);
         sendAssignEmail(payload, currentUser.email);
         sendAssignTelegram(payload, currentUser.email);
+        sendWebPushTo(payload.assigned_to, '📨 Bạn được giao việc mới', payload.title);
       }
 
       // Tạo các task lặp lại cho các ngày tiếp theo
@@ -3190,19 +3242,22 @@ async function quickChangeStatus(id, newStatus) {
         `🔄 *Task chuyển trạng thái*\n📌 ${task.title}\n${statusLabel(oldStatus)} → ${statusLabel(newStatus)}`);
     }
 
-    // Gửi email cho phía còn lại nếu task có giao việc
+    // Gửi email + push cho phía còn lại nếu task có giao việc
     if (task.assigned_to) {
       const recipientEmail = isOwner ? task.assigned_email : null; // nếu mình là chủ → báo cho người được giao
       const fetchOwnerEmail = !isOwner; // nếu mình là người được giao → cần lấy email chủ task
+      const statusLabelText = `${statusLabel(oldStatus)} → ${statusLabel(newStatus)}`;
 
       if (recipientEmail) {
         sendStatusEmail(recipientEmail, task.title, currentUser.email, oldStatus, newStatus);
+        sendWebPushTo(task.assigned_to, '🔄 ' + task.title, statusLabelText);
       } else if (fetchOwnerEmail) {
         // Lấy email chủ task qua RPC (vì client không query trực tiếp auth.users)
         try {
           const { data } = await sb.rpc('get_user_email', { p_user_id: task.user_id });
           if (data) sendStatusEmail(data, task.title, currentUser.email, oldStatus, newStatus);
         } catch(e) {}
+        sendWebPushTo(task.user_id, '🔄 ' + task.title, statusLabelText);
       }
     }
 
