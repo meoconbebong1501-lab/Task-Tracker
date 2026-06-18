@@ -2291,9 +2291,12 @@ async function subscribeWebPush() {
         applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
       });
     }
-    // Lưu subscription vào Supabase
-    await sb.from('user_settings').update({ push_subscription: JSON.stringify(sub) }).eq('user_id', currentUser.id);
-    userSettings.push_subscription = JSON.stringify(sub);
+    // Lưu vào bảng push_subscriptions (mỗi thiết bị 1 dòng riêng, theo endpoint)
+    await sb.from('push_subscriptions').upsert({
+      user_id: currentUser.id,
+      endpoint: sub.endpoint,
+      subscription: JSON.stringify(sub),
+    }, { onConflict: 'endpoint' });
   } catch(e) {
     console.error('Lỗi đăng ký push:', e);
   }
@@ -2488,7 +2491,11 @@ async function testAllNotifications() {
     debugText += `Subscription: ${sub ? 'CÓ' : 'KHÔNG CÓ'}\n`;
     if (sub) {
       debugText += `Endpoint: ${sub.endpoint.slice(0,60)}...\n`;
-      await sb.from('user_settings').update({ push_subscription: JSON.stringify(sub) }).eq('user_id', currentUser.id);
+      await sb.from('push_subscriptions').upsert({
+        user_id: currentUser.id,
+        endpoint: sub.endpoint,
+        subscription: JSON.stringify(sub),
+      }, { onConflict: 'endpoint' });
       const pushResult = await fetch('https://taskflow-push.meoconbebong1501.workers.dev/send-push', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
