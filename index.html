@@ -2454,12 +2454,20 @@ async function sendNotification(title, body, telegramMsg) {
 }
 
 async function testAllNotifications() {
-  await saveSettings();
-  const msg = 'Mọi kênh đang hoạt động bình thường 🎉';
-  sendBrowserNotification('🧪 TaskFlow — Test', msg);
-  sendEmailNotification('Test thông báo TaskFlow', msg);
-  sendTelegramNotification(`🧪 *Test thông báo TaskFlow*\n${msg}`);
-  showToast('📤 Đã gửi test — kiểm tra các kênh đã bật');
+  // Hiện modal NGAY LẬP TỨC trước, rồi điền debug info dần — đảm bảo luôn thấy gì đó
+  showDebugModal('Đang kiểm tra...');
+
+  try {
+    await saveSettings();
+  } catch(e) {}
+
+  try {
+    const msg = 'Mọi kênh đang hoạt động bình thường 🎉';
+    sendBrowserNotification('🧪 TaskFlow — Test', msg);
+    sendEmailNotification('Test thông báo TaskFlow', msg);
+    sendTelegramNotification(`🧪 *Test thông báo TaskFlow*\n${msg}`);
+    showToast('📤 Đã gửi test — kiểm tra các kênh đã bật');
+  } catch(e) {}
 
   // Test riêng Web Push thật (qua worker) + hiện debug info ngay trên app
   let debugText = '';
